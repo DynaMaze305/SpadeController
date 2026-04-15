@@ -23,6 +23,8 @@ class AlphaBotAgent(Agent):
         self.nav_recipent = nav_recipent
 
     class XMPPCommandListener(CyclicBehaviour):
+        STEP_DURATION = 0.5
+
         async def on_start(self):
             logger.info("[Behavior] Initializing AlphaBot2...")
             self.ab = AlphaBot2()
@@ -51,25 +53,25 @@ class AlphaBotAgent(Agent):
             if command == "forward":
                 logger.info("[Behavior] Moving forward...")
                 self.ab.forward()
-                await asyncio.sleep(2)
+                await asyncio.sleep(self.STEP_DURATION)
                 self.ab.stop()
                 
             elif command == "backward":
                 logger.info("[Behavior] Moving backward...")
                 self.ab.backward()
-                await asyncio.sleep(2)
+                await asyncio.sleep(self.STEP_DURATION)
                 self.ab.stop()
                 
             elif command == "left":
                 logger.info("[Behavior] Turning left...")
                 self.ab.left()
-                await asyncio.sleep(2)
+                await asyncio.sleep(self.STEP_DURATION)
                 self.ab.stop()
                 
             elif command == "right":
                 logger.info("[Behavior] Turning right...")
                 self.ab.right()
-                await asyncio.sleep(2)
+                await asyncio.sleep(self.STEP_DURATION)
                 self.ab.stop()
                 
             elif command.startswith("motor "):
@@ -79,7 +81,7 @@ class AlphaBotAgent(Agent):
                     right_speed = int(right)
                     logger.info(f"[Behavior] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
                     self.ab.setMotor(left_speed, right_speed)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(self.STEP_DURATION)
                     self.ab.stop()
                 except (ValueError, IndexError):
                     logger.error("[Behavior] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
