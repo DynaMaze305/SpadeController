@@ -18,6 +18,10 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.propagate = True
 
 class AlphaBotAgent(Agent):
+    def __init__(self, nav_recipent, jid, password, verify_security=False):
+        super().__init__(jid, password, verify_security=verify_security)
+        self.nav_recipent = nav_recipent
+
     class XMPPCommandListener(CyclicBehaviour):
         async def on_start(self):
             logger.info("[Behavior] Initializing AlphaBot2...")
@@ -29,7 +33,7 @@ class AlphaBotAgent(Agent):
             msg = await self.receive(timeout=10)
             if msg:
                 logger.info(f"[Behavior] Received command ({msg.sender}): {msg.body}")
-                await self.process_command(msg.body)
+                await self.process_command(msg.body, str(msg.sender))
                 
                 # Send a confirmation response
                 reply = Message(to=str(msg.sender))
@@ -40,7 +44,7 @@ class AlphaBotAgent(Agent):
             else:
                 logger.debug("[Behavior] No message received during timeout.")
         
-        async def process_command(self, command):
+        async def process_command(self, command, sender):
             command = command.strip().lower()
             
             if command == "forward":
@@ -82,9 +86,43 @@ class AlphaBotAgent(Agent):
             elif command == "stop":
                 logger.info("[Behavior] Stopping...")
                 self.ab.stop()
-                
+            
+            elif command == "init":
+                logger.info("[Behavior] Start robot.")
+                #self.agent.add_behaviour(self.agent.XMPPPathRequest(self.nav_recipent))
+
+            elif command.startswith("instructions "):
+                instructions = command.split()
+                self.agent.add_behaviour(XMPPExecutePath(instructions[1:]))
+
             else:
                 logger.warning(f"[Behavior] Unknown command: {command}")
+
+    class XMPPPathRequest(OneShotBehavior):
+        def __init__(self, target):
+            super().__init__()
+            self.target = target
+            logger.info("[Behavior] Ready to request a path.")
+        
+        async def run(self):
+            logger.info("[Behavior] Sending path request...")
+            msg = Message(to=self.target)
+            msg.set_metadata("performative", "request")
+            msg.body = "request path"
+
+            await self.send(msg)
+            logger.info("[Behavior] Request send.")
+
+    class XMPPExecutePath(PeriodicBehaviour):
+            def __init__(self, instructions):
+                super().__init__(period=1)
+                self.instructions = instructions
+                logger.info("[Behavior] Ready to execute instructions.")
+
+            async def run(self):
+                logger.info("[Behavior] Executing instruction...")
+                # TODO: implement execution logic
+
 
     async def setup(self):
         logger.info("[Agent] AlphaBotAgent starting setup...")
@@ -93,6 +131,10 @@ class AlphaBotAgent(Agent):
         # Add command listener behavior
         command_behavior = self.XMPPCommandListener()
         self.add_behaviour(command_behavior)
+
+        # Add first init request
+        init_request = self.XMPPPathRequest(self.nav_recipent)
+        self.add_behaviour(init_request)
         
         logger.info("[Agent] Behaviors added, setup complete.")
 
@@ -103,6 +145,8 @@ async def main():
     xmpp_username = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent")
     xmpp_jid = f"{xmpp_username}@{xmpp_domain}"
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
+
+    nav_recipent = os.environ.get("NAV_RECIPENT", "navigator@isc-coordinator.lan")
     
     logger.info("Starting AlphaBot XMPP Agent")
     logger.info(f"XMPP JID: {xmpp_jid}")
@@ -110,6 +154,7 @@ async def main():
     
     try:
         agent = AlphaBotAgent(
+            nav_recipent=nav_recipent,
             jid=xmpp_jid, 
             password=xmpp_password,
             verify_security=False
