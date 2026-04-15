@@ -120,8 +120,17 @@ class AlphaBotAgent(Agent):
                 logger.info("[Behavior] Ready to execute instructions.")
 
             async def run(self):
-                logger.info("[Behavior] Executing instruction...")
-                # TODO: implement execution logic
+                if not self.instructions:
+                    logger.info("[Behavior] Path complete.")
+                    self.kill()
+                    return
+
+                step = self.instructions.pop(0)
+                logger.info(f"[Behavior] Dispatching step to listener: {step}")
+                msg = Message(to=str(self.agent.jid))
+                msg.set_metadata("performative", "inform")
+                msg.body = step
+                await self.send(msg)
 
 
     async def setup(self):
