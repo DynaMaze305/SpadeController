@@ -34,13 +34,14 @@ class AlphaBotAgent(Agent):
             if msg:
                 logger.info(f"[Behavior] Received command ({msg.sender}): {msg.body}")
                 await self.process_command(msg.body, str(msg.sender))
-                
-                # Send a confirmation response
-                reply = Message(to=str(msg.sender))
-                reply.set_metadata("performative", "inform")
-                reply.body = f"Executed command: {msg.body}"
-                await self.send(reply)
-                logger.info(f"[Behavior] Sent reply to {msg.sender}")
+
+                # Only ack real commands, not informs (prevents echo loops)
+                if msg.get_metadata("performative") != "inform":
+                    reply = Message(to=str(msg.sender))
+                    reply.set_metadata("performative", "inform")
+                    reply.body = f"Executed command: {msg.body}"
+                    await self.send(reply)
+                    logger.info(f"[Behavior] Sent reply to {msg.sender}")
             else:
                 logger.debug("[Behavior] No message received during timeout.")
         
