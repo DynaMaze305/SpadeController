@@ -1,5 +1,5 @@
 from spade.agent import Agent
-from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
+from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 from agent.alphabotlib.AlphaBot2 import AlphaBot2
 import asyncio
@@ -93,12 +93,12 @@ class AlphaBotAgent(Agent):
 
             elif command.startswith("instructions "):
                 instructions = command.split()
-                self.agent.add_behaviour(XMPPExecutePath(instructions[1:]))
+                self.agent.add_behaviour(self.agent.XMPPExecutePath(instructions[1:]))
 
             else:
                 logger.warning(f"[Behavior] Unknown command: {command}")
 
-    class XMPPPathRequest(OneShotBehavior):
+    class XMPPPathRequest(OneShotBehaviour):
         def __init__(self, target):
             super().__init__()
             self.target = target
