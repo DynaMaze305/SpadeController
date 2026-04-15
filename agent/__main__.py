@@ -24,6 +24,7 @@ class AlphaBotAgent(Agent):
 
     class XMPPCommandListener(CyclicBehaviour):
         STEP_DURATION = 0.5
+        ROTATION_DURATION = 0.18
 
         async def on_start(self):
             logger.info("[Behavior] Initializing AlphaBot2...")
@@ -65,13 +66,13 @@ class AlphaBotAgent(Agent):
             elif command == "left":
                 logger.info("[Behavior] Turning left...")
                 self.ab.left()
-                await asyncio.sleep(self.STEP_DURATION)
+                await asyncio.sleep(self.ROTATION_DURATION)
                 self.ab.stop()
                 
             elif command == "right":
                 logger.info("[Behavior] Turning right...")
                 self.ab.right()
-                await asyncio.sleep(self.STEP_DURATION)
+                await asyncio.sleep(self.ROTATION_DURATION)
                 self.ab.stop()
                 
             elif command.startswith("motor "):
