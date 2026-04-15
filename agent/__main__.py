@@ -93,7 +93,7 @@ class AlphaBotAgent(Agent):
 
             elif command.startswith("instructions "):
                 instructions = command.split()
-                self.agent.add_behaviour(XMPPExecutePath(instructions[1:]))
+                self.agent.add_behaviour(self.agent.XMPPExecutePath(instructions[1:]))
 
             else:
                 logger.warning(f"[Behaviour] Unknown command: {command}")
