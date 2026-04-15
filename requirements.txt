@@ -2,3 +2,4 @@ RPi.GPIO
 spidev
 rpi_ws281x
 spade
+picamera2

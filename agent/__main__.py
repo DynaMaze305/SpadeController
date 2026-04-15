@@ -7,6 +7,19 @@ import os
 import time
 import logging
 
+from rpi_ws281x import Color
+
+def Wheel(pos):
+    """Generate rainbow colors across 0-255 positions."""
+    if pos < 85:
+        return Color(pos * 3, 255 - pos * 3, 0)
+    elif pos < 170:
+        pos -= 85
+        return Color(255 - pos * 3, 0, pos * 3)
+    else:
+        pos -= 170
+        return Color(0, pos * 3, 255 - pos * 3)
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("AlphaBotAgent")
@@ -21,6 +34,7 @@ class AlphaBotAgent(Agent):
     def __init__(self, nav_recipent, jid, password, verify_security=False):
         super().__init__(jid, password, verify_security=verify_security)
         self.nav_recipent = nav_recipent
+        self.ab = None
 
     class XMPPCommandListener(CyclicBehaviour):
         # Adjustable variable for better control of the movement duration
@@ -29,8 +43,9 @@ class AlphaBotAgent(Agent):
         ROTATION_DEG_PER_SEC = 500
 
         async def on_start(self):
-            logger.info("[Behaviour] Initializing AlphaBot2...")
-            self.ab = AlphaBot2()
+            if self.agent.ab is None:
+                logger.info("[Behaviour] Initializing AlphaBot2...")
+                self.agent.ab = AlphaBot2()
             logger.info("[Behaviour] Ready to receive commands.")
             
         async def run(self):
@@ -38,8 +53,8 @@ class AlphaBotAgent(Agent):
             msg = await self.receive(timeout=10)
             if msg:
                 logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
-                await self.process_command(msg.body, str(msg.sender))
-
+                await self.process_command(msg.body)
+                
                 # Send a confirmation response
                 reply = Message(to=str(msg.sender))
                 reply.set_metadata("performative", "inform")
@@ -69,7 +84,7 @@ class AlphaBotAgent(Agent):
             await asyncio.sleep(duration)
             self.ab.stop()
 
-        async def process_command(self, command, sender):
+        async def process_command(self, command):
             command = command.strip().lower()
             
             if command == "forward":
@@ -119,11 +134,7 @@ class AlphaBotAgent(Agent):
 
             elif command == "stop":
                 logger.info("[Behaviour] Stopping...")
-                self.ab.stop()
-            
-            elif command == "init":
-                logger.info("[Behaviour] Start robot.")
-                #self.agent.add_behaviour(self.agent.XMPPPathRequest(self.nav_recipent))
+                self.agent.ab.stop()
 
             elif command.startswith("instructions "):
                 instructions = command.split()
@@ -167,6 +178,56 @@ class AlphaBotAgent(Agent):
                 await self.send(msg)
 
 
+    class XMPPSensorsBehavior(PeriodicBehaviour):
+        async def on_start(self):
+            if self.agent.ab is None:
+                logger.info("[Behavior] Initializing AlphaBot2...")
+                self.agent.ab = AlphaBot2()
+            logger.info("[Behavior] Ready to broadcast data sensors.")
+            self.red_color = Color(255, 0, 0)
+            self.orange_color = Color(125, 200, 0)
+        
+        async def run(self):
+            logger.info("[Behavior] Collect sensors data...")
+            try:
+                dr, dl = self.agent.ab.get_ioa()
+                status_r = "OBSTACLE" if dr == 0 else "CLEAR"
+                status_l = "OBSTACLE" if dl == 0 else "CLEAR"
+                if dr == 0:
+                    self.agent.ab.set_led(0,self.red_color)
+                else:
+                    self.agent.ab.set_led(0,self.orange_color)
+                if dl == 0:
+                    self.agent.ab.set_led(3,self.red_color)
+                else:
+                    self.agent.ab.set_led(3,self.orange_color)
+
+                logging.info(f"[Sensor] Right Infrared Obstacle: {dr} ({status_r})")
+                logging.info(f"[Sensor] Left  Infrared Obstacle: {dl} ({status_l})")
+
+                tr_sensor = self.agent.ab.get_tr_value()
+                logging.info(f"[Sensor] TR sensors values: {tr_sensorcl}")
+                c = 255*sum(tr_sensor)/(5000)
+                color = Wheel(c)
+                self.agent.ab.set_led(1,color)
+                self.agent.ab.set_led(2,color)
+            except Exception as e:
+                logger.error(f"[Error] Sensor Behavior exception: {str(e)}", exc_info=True)
+
+    class XMPPCameraRequest(OneShotBehavior):
+        def __init__(self, requester_jid):
+            super().__init__()
+            self.requester_jid = requester_jid
+            logger.info("[Behavior] Requesting photo.")
+
+        async def run(self):
+            msg = Message(to=self.requester_jid)
+            msg.set_metadata("performative", "inform")
+            msg.body = self.agent.ab.get_photo()
+
+            logger.info("[Behavior] Sending photo.")
+            await self.send(msg)
+
     async def setup(self):
         logger.info("[Agent] AlphaBotAgent starting setup...")
         logger.info(f"[Agent] Will connect as {self.jid} to server {os.environ.get('XMPP_SERVER', 'prosody')}")
@@ -181,7 +242,6 @@ class AlphaBotAgent(Agent):
         
         logger.info("[Agent] Behaviours added, setup complete.")
 
-import asyncio
 
 async def main():
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
