@@ -1,5 +1,4 @@
 RPi.GPIO
 spidev
 rpi_ws281x
-spade
-picamera2
+spade==3.3.3
