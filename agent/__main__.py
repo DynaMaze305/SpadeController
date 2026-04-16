@@ -26,7 +26,7 @@ class AlphaBotAgent(Agent):
         # Adjustable variable for better control of the movement duration
         STEP_DURATION = 0.5 # secondes
         ROTATION_DURATION = 0.18 # secondes
-        ROTATION_DEG_PER_SEC = 500 # degrees / seconds
+        ROTATION_DEG_PER_SEC = 90 # target degrees / second — tune ROTATION_PWM to match
         ROTATION_PWM = 20 # duty cycle percentage (0-100)
 
         async def on_start(self):
