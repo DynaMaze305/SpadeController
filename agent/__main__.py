@@ -1,5 +1,5 @@
 from spade.agent import Agent
-from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
+from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 from agent.alphabotlib.AlphaBot2 import AlphaBot2
 import asyncio
@@ -24,15 +24,15 @@ class AlphaBotAgent(Agent):
 
     class XMPPCommandListener(CyclicBehaviour):
         async def on_start(self):
-            logger.info("[Behavior] Initializing AlphaBot2...")
+            logger.info("[Behaviour] Initializing AlphaBot2...")
             self.ab = AlphaBot2()
-            logger.info("[Behavior] Ready to receive commands.")
+            logger.info("[Behaviour] Ready to receive commands.")
             
         async def run(self):
-            logger.debug("[Behavior] Waiting for messages...")
+            logger.debug("[Behaviour] Waiting for messages...")
             msg = await self.receive(timeout=10)
             if msg:
-                logger.info(f"[Behavior] Received command ({msg.sender}): {msg.body}")
+                logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
                 await self.process_command(msg.body, str(msg.sender))
                 
                 # Send a confirmation response
@@ -40,33 +40,33 @@ class AlphaBotAgent(Agent):
                 reply.set_metadata("performative", "inform")
                 reply.body = f"Executed command: {msg.body}"
                 await self.send(reply)
-                logger.info(f"[Behavior] Sent reply to {msg.sender}")
+                logger.info(f"[Behaviour] Sent reply to {msg.sender}")
             else:
-                logger.debug("[Behavior] No message received during timeout.")
+                logger.debug("[Behaviour] No message received during timeout.")
         
         async def process_command(self, command, sender):
             command = command.strip().lower()
             
             if command == "forward":
-                logger.info("[Behavior] Moving forward...")
+                logger.info("[Behaviour] Moving forward...")
                 self.ab.forward()
                 await asyncio.sleep(2)
                 self.ab.stop()
                 
             elif command == "backward":
-                logger.info("[Behavior] Moving backward...")
+                logger.info("[Behaviour] Moving backward...")
                 self.ab.backward()
                 await asyncio.sleep(2)
                 self.ab.stop()
                 
             elif command == "left":
-                logger.info("[Behavior] Turning left...")
+                logger.info("[Behaviour] Turning left...")
                 self.ab.left()
                 await asyncio.sleep(2)
                 self.ab.stop()
                 
             elif command == "right":
-                logger.info("[Behavior] Turning right...")
+                logger.info("[Behaviour] Turning right...")
                 self.ab.right()
                 await asyncio.sleep(2)
                 self.ab.stop()
@@ -76,19 +76,19 @@ class AlphaBotAgent(Agent):
                     _, left, right = command.split()
                     left_speed = int(left)
                     right_speed = int(right)
-                    logger.info(f"[Behavior] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
+                    logger.info(f"[Behaviour] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
                     self.ab.setMotor(left_speed, right_speed)
                     await asyncio.sleep(2)
                     self.ab.stop()
                 except (ValueError, IndexError):
-                    logger.error("[Behavior] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
+                    logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
                     
             elif command == "stop":
-                logger.info("[Behavior] Stopping...")
+                logger.info("[Behaviour] Stopping...")
                 self.ab.stop()
             
             elif command == "init":
-                logger.info("[Behavior] Start robot.")
+                logger.info("[Behaviour] Start robot.")
                 #self.agent.add_behaviour(self.agent.XMPPPathRequest(self.nav_recipent))
 
             elif command.startswith("instructions "):
@@ -96,31 +96,31 @@ class AlphaBotAgent(Agent):
                 self.agent.add_behaviour(XMPPExecutePath(instructions[1:]))
 
             else:
-                logger.warning(f"[Behavior] Unknown command: {command}")
+                logger.warning(f"[Behaviour] Unknown command: {command}")
 
-    class XMPPPathRequest(OneShotBehavior):
+    class XMPPPathRequest(OneShotBehaviour):
         def __init__(self, target):
             super().__init__()
             self.target = target
-            logger.info("[Behavior] Ready to request a path.")
+            logger.info("[Behaviour] Ready to request a path.")
         
         async def run(self):
-            logger.info("[Behavior] Sending path request...")
+            logger.info("[Behaviour] Sending path request...")
             msg = Message(to=self.target)
             msg.set_metadata("performative", "request")
             msg.body = "request path"
 
             await self.send(msg)
-            logger.info("[Behavior] Request send.")
+            logger.info("[Behaviour] Request send.")
 
     class XMPPExecutePath(PeriodicBehaviour):
             def __init__(self, instructions):
                 super().__init__(period=1)
                 self.instructions = instructions
-                logger.info("[Behavior] Ready to execute instructions.")
+                logger.info("[Behaviour] Ready to execute instructions.")
 
             async def run(self):
-                logger.info("[Behavior] Executing instruction...")
+                logger.info("[Behaviour] Executing instruction...")
                 # TODO: implement execution logic
 
 
@@ -128,15 +128,15 @@ class AlphaBotAgent(Agent):
         logger.info("[Agent] AlphaBotAgent starting setup...")
         logger.info(f"[Agent] Will connect as {self.jid} to server {os.environ.get('XMPP_SERVER', 'prosody')}")
         
-        # Add command listener behavior
-        command_behavior = self.XMPPCommandListener()
-        self.add_behaviour(command_behavior)
+        # Add command listener behaviour
+        command_behaviour = self.XMPPCommandListener()
+        self.add_behaviour(command_behaviour)
 
         # Add first init request
         init_request = self.XMPPPathRequest(self.nav_recipent)
         self.add_behaviour(init_request)
         
-        logger.info("[Agent] Behaviors added, setup complete.")
+        logger.info("[Agent] Behaviours added, setup complete.")
 
 import asyncio
 
