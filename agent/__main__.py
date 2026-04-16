@@ -25,6 +25,7 @@ class AlphaBotAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
         STEP_DURATION = 0.5
         ROTATION_DURATION = 0.18
+        ROTATION_DEG_PER_SEC = 500
 
         async def on_start(self):
             logger.info("[Behaviour] Initializing AlphaBot2...")
@@ -37,7 +38,7 @@ class AlphaBotAgent(Agent):
             if msg:
                 logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
                 await self.process_command(msg.body, str(msg.sender))
-                
+
                 # Send a confirmation response
                 reply = Message(to=str(msg.sender))
                 reply.set_metadata("performative", "inform")
@@ -47,6 +48,19 @@ class AlphaBotAgent(Agent):
             else:
                 logger.debug("[Behaviour] No message received during timeout.")
         
+        async def rotate_by(self, degrees: float):
+            duration = abs(degrees) / self.ROTATION_DEG_PER_SEC
+
+            logger.info(f"[Behavior] Rotating {degrees:+.1f} deg (duration={duration:.2f}s)")
+
+            if degrees > 0:
+                self.ab.left()
+            else:
+                self.ab.right()
+
+            await asyncio.sleep(duration)
+            self.ab.stop()
+
         async def process_command(self, command, sender):
             command = command.strip().lower()
             
@@ -85,7 +99,15 @@ class AlphaBotAgent(Agent):
                     self.ab.stop()
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
-                    
+                    logger.error("[Behavior] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
+
+            elif command.startswith("rotation "):
+                try:
+                    angle = float(command.split()[1])
+                    await self.rotate_by(angle)
+                except (ValueError, IndexError):
+                    logger.error("[Behavior] Invalid rotation command. Use 'rotation <degrees>'")
+
             elif command == "stop":
                 logger.info("[Behaviour] Stopping...")
                 self.ab.stop()
@@ -123,8 +145,17 @@ class AlphaBotAgent(Agent):
                 logger.info("[Behaviour] Ready to execute instructions.")
 
             async def run(self):
-                logger.info("[Behaviour] Executing instruction...")
-                # TODO: implement execution logic
+                if not self.instructions:
+                    logger.info("[Behavior] Path complete.")
+                    self.kill()
+                    return
+
+                step = self.instructions.pop(0)
+                logger.info(f"[Behavior] Dispatching step to listener: {step}")
+                msg = Message(to=str(self.agent.jid))
+                msg.set_metadata("performative", "inform")
+                msg.body = step
+                await self.send(msg)
 
 
     async def setup(self):
