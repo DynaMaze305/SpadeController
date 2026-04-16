@@ -24,9 +24,10 @@ class AlphaBotAgent(Agent):
 
     class XMPPCommandListener(CyclicBehaviour):
         # Adjustable variable for better control of the movement duration
-        STEP_DURATION = 0.5
-        ROTATION_DURATION = 0.18
-        ROTATION_DEG_PER_SEC = 500
+        STEP_DURATION = 0.5 # secondes
+        ROTATION_DURATION = 0.18 # secondes
+        ROTATION_DEG_PER_SEC = 500 # degrees / seconds
+        ROTATION_PWM = 20 # duty cycle percentage (0-100)
 
         async def on_start(self):
             logger.info("[Behaviour] Initializing AlphaBot2...")
@@ -51,20 +52,18 @@ class AlphaBotAgent(Agent):
 
         # Functions that rotates the robot
         # Takes an angle in degrees as a parameter
-                logger.debug("[Behaviour] No message received during timeout.")
-
         async def rotate_by(self, degrees: float):
 
             # Calculates the theoretical Duration of the rotation
             duration = abs(degrees) / self.ROTATION_DEG_PER_SEC
 
-            logger.info(f"[Behavior] Rotating {degrees:+.1f} deg (duration={duration:.2f}s)")
+            logger.info(f"[Behavior] Rotating {degrees:+.1f} deg (duration={duration:.2f}s, pwm={self.ROTATION_PWM})")
 
-            # Executes the rotation
+            # Executes the rotation via setMotor so we control PWM ourselves
             if degrees > 0:
-                self.ab.left()
+                self.ab.setMotor(-self.ROTATION_PWM, self.ROTATION_PWM)
             else:
-                self.ab.right()
+                self.ab.setMotor(self.ROTATION_PWM, -self.ROTATION_PWM)
 
             await asyncio.sleep(duration)
             self.ab.stop()
@@ -107,7 +106,6 @@ class AlphaBotAgent(Agent):
                     self.ab.stop()
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
-                    logger.error("[Behavior] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
 
             # Command for a specific rotation angle instead of left/right
             elif command.startswith("rotation "):
