@@ -167,8 +167,8 @@ class AlphaBotAgent(Agent):
         self.add_behaviour(command_behaviour)
 
         # Add first init request
-        init_request = self.XMPPPathRequest(self.nav_recipent)
-        self.add_behaviour(init_request)
+        # init_request = self.XMPPPathRequest(self.nav_recipent)
+        # self.add_behaviour(init_request)
         
         logger.info("[Agent] Behaviours added, setup complete.")
 
