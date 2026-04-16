@@ -23,6 +23,7 @@ class AlphaBotAgent(Agent):
         self.nav_recipent = nav_recipent
 
     class XMPPCommandListener(CyclicBehaviour):
+        # Adjustable variable for better control of the movement duration
         STEP_DURATION = 0.5
         ROTATION_DURATION = 0.18
         ROTATION_DEG_PER_SEC = 500
@@ -46,13 +47,20 @@ class AlphaBotAgent(Agent):
                 await self.send(reply)
                 logger.info(f"[Behaviour] Sent reply to {msg.sender}")
             else:
+                logger.debug("[Behavior] No message received during timeout.")
+
+        # Functions that rotates the robot
+        # Takes an angle in degrees as a parameter
                 logger.debug("[Behaviour] No message received during timeout.")
-        
+
         async def rotate_by(self, degrees: float):
+
+            # Calculates the theoretical Duration of the rotation
             duration = abs(degrees) / self.ROTATION_DEG_PER_SEC
 
             logger.info(f"[Behavior] Rotating {degrees:+.1f} deg (duration={duration:.2f}s)")
 
+            # Executes the rotation
             if degrees > 0:
                 self.ab.left()
             else:
@@ -101,6 +109,7 @@ class AlphaBotAgent(Agent):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
                     logger.error("[Behavior] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
 
+            # Command for a specific rotation angle instead of left/right
             elif command.startswith("rotation "):
                 try:
                     angle = float(command.split()[1])
