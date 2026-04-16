@@ -1,4 +1,5 @@
 #!/bin/bash
+# Implemented with assistance from AI (Copilot)
 # Deployment script for SpadeController
 LOGFILE=deploy.log
 echo "$(date) - Deployment started" >> $LOGFILE
