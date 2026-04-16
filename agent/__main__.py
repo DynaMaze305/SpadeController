@@ -25,7 +25,7 @@ class AlphaBotAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
         # Adjustable variable for better control of the movement duration
         STEP_DURATION = 0.5 # secondes
-        ROTATION_DURATION = 0.18 # secondes
+        ROTATION_DURATION = 1.0 # secondes
         ROTATION_DEG_PER_SEC = 90 # target degrees / second — tune ROTATION_PWM to match
         ROTATION_PWM = 20 # duty cycle percentage (0-100)
 
@@ -52,18 +52,20 @@ class AlphaBotAgent(Agent):
 
         # Functions that rotates the robot
         # Takes an angle in degrees as a parameter
-        async def rotate_by(self, degrees: float):
+        async def rotate_by(self, degrees: float, pwm: int = None):
+            if pwm is None:
+                pwm = self.ROTATION_PWM
 
             # Calculates the theoretical Duration of the rotation
             duration = abs(degrees) / self.ROTATION_DEG_PER_SEC
 
-            logger.info(f"[Behavior] Rotating {degrees:+.1f} deg (duration={duration:.2f}s, pwm={self.ROTATION_PWM})")
+            logger.info(f"[Behaviour] Rotating {degrees:+.1f} deg (duration={duration:.2f}s, pwm={pwm})")
 
             # Executes the rotation via setMotor so we control PWM ourselves
             if degrees > 0:
-                self.ab.setMotor(-self.ROTATION_PWM, self.ROTATION_PWM)
+                self.ab.setMotor(-pwm, pwm)
             else:
-                self.ab.setMotor(self.ROTATION_PWM, -self.ROTATION_PWM)
+                self.ab.setMotor(pwm, -pwm)
 
             await asyncio.sleep(duration)
             self.ab.stop()
@@ -110,10 +112,12 @@ class AlphaBotAgent(Agent):
             # Command for a specific rotation angle instead of left/right
             elif command.startswith("rotation "):
                 try:
-                    angle = float(command.split()[1])
-                    await self.rotate_by(angle)
+                    parts = command.split()
+                    angle = float(parts[1])
+                    pwm = int(parts[2]) if len(parts) > 2 else None
+                    await self.rotate_by(angle, pwm)
                 except (ValueError, IndexError):
-                    logger.error("[Behavior] Invalid rotation command. Use 'rotation <degrees>'")
+                    logger.error("[Behaviour] Invalid rotation command. Use 'rotation <degrees>' or 'rotation <degrees> <pwm>'")
 
             elif command == "stop":
                 logger.info("[Behaviour] Stopping...")
