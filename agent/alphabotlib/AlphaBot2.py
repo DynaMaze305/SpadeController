@@ -1,5 +1,7 @@
-import RPi.GPIO as GPIO
 import time
+
+# Import necessary libraries for GPIO control (Raspberry Pi)
+import RPi.GPIO as GPIO
 
 # Additional imports for line sensor and LED strip
 from TRSensors import TRSensor
