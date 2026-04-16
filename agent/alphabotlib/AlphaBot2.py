@@ -4,7 +4,7 @@ import time
 import RPi.GPIO as GPIO
 
 # Additional imports for line sensor and LED strip
-from TRSensors import TRSensor
+from agent.alphabotlib.TRSensors import TRSensor
 from rpi_ws281x import Adafruit_NeoPixel, Color
 
 # Additional imports for camera
@@ -13,7 +13,7 @@ from rpi_ws281x import Adafruit_NeoPixel, Color
 # from io import BytesIO
 
 # Additional imports for analog sensors
-from AnalogSensors import AnalogSensors
+from agent.alphabotlib.AnalogSensors import AnalogSensors
 
 class AlphaBot2(object):
     """
@@ -170,13 +170,13 @@ class AlphaBot2(object):
             GPIO.output(self.BIN2,GPIO.HIGH)
             self.PWMB.ChangeDutyCycle(0 - left)
 
-    def get_ioa(self) -> tuple(int, int):
+    def get_ioa(self) -> tuple[int, int]:
         """
         Read the status of the infrared obstacle avoidance sensors.
 
         Returns
         -------
-        tuple(int, int)
+        tuple[int, int]
             A tuple containing the status of the right (DR) and left (DL) sensors, where 0 indicates an obstacle detected and 1 indicates no obstacle.
         """
         DR_status = GPIO.input(self.DR)
@@ -194,13 +194,13 @@ class AlphaBot2(object):
         """
         return self.tr_sensor.AnalogRead()
 
-    def get_analog_values(self) -> list(int):
+    def get_analog_values(self) -> [int]:
         """
         Read values from the analog sensors.
 
         Returns
         -------
-        list(int)
+        list[int]
             A list of the values read from the analog sensors.
         """
         data = []

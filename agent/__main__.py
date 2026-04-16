@@ -246,13 +246,13 @@ class AlphaBotAgent(Agent):
         """
         Behavior to execute a series of instructions received from the navigation agent.
         """
-        def __init__(self, instructions: list(str), period: float = 1):
+        def __init__(self, instructions: list[str], period: float = 1):
             """
             Initialize the behavior with the list of instructions to execute and the execution period.
 
             Parameters
             ----------
-            instructions: list(str)
+            instructions: list[str]
                 A list of instructions to execute, e.g., ["forward", "left", "forward", "right"].
             period: float
                 The time interval (in seconds) between executing each instruction.
