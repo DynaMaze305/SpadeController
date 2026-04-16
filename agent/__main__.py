@@ -1,16 +1,32 @@
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
+from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
-from agent.alphabotlib.AlphaBot2 import AlphaBot2
 import asyncio
 import os
 import time
 import logging
 
+# Import AlphaBot2 library
+from agent.alphabotlib.AlphaBot2 import AlphaBot2
+
+# Import rpi_ws281x for LED color
 from rpi_ws281x import Color
 
-def Wheel(pos):
-    """Generate rainbow colors across 0-255 positions."""
+def Wheel(pos: int) -> Color:
+    """
+    Generate rainbow colors across 0-255 positions.
+
+    Parameters
+    ----------
+    pos : int
+        The position in the rainbow (0-255).
+
+    Returns
+    -------
+    Color
+        The RGB color for the given position.
+    """
     if pos < 85:
         return Color(pos * 3, 255 - pos * 3, 0)
     elif pos < 170:
@@ -31,24 +47,51 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.propagate = True
 
 class AlphaBotAgent(Agent):
-    def __init__(self, nav_recipent, jid, password, verify_security=False):
+    """
+    Agent to control the AlphaBot2 robot via XMPP commands.
+    """
+    def __init__(self, nav_recipent: str, jid: str, password: str, verify_security: bool = False):
+        """
+        Initialize the AlphaBotAgent with XMPP credentials and navigation recipient.
+
+        Parameters
+        ----------
+        nav_recipent: str
+            The JID of the navigation agent to which the path request will be sent.
+        jid: str
+            The XMPP JID for the agent.
+        password: str
+            The password for the XMPP account.
+        verify_security: bool
+            Whether to verify the security of the XMPP connection.
+
+        """
         super().__init__(jid, password, verify_security=verify_security)
         self.nav_recipent = nav_recipent
         self.ab = None
 
     class XMPPCommandListener(CyclicBehaviour):
+        """
+        Behavior to listen for XMPP messages and execute commands on the AlphaBot2.
+        """
         # Adjustable variable for better control of the movement duration
         STEP_DURATION = 0.5
         ROTATION_DURATION = 0.18
         ROTATION_DEG_PER_SEC = 500
 
         async def on_start(self):
+            """
+            Initialize the AlphaBot2 instance if needed when the behavior starts.
+            """
             if self.agent.ab is None:
                 logger.info("[Behaviour] Initializing AlphaBot2...")
                 self.agent.ab = AlphaBot2()
             logger.info("[Behaviour] Ready to receive commands.")
             
         async def run(self):
+            """
+            Listen for incoming XMPP messages and process commands.
+            """
             logger.debug("[Behaviour] Waiting for messages...")
             msg = await self.receive(timeout=10)
             if msg:
@@ -69,7 +112,14 @@ class AlphaBotAgent(Agent):
                 logger.debug("[Behaviour] No message received during timeout.")
 
         async def rotate_by(self, degrees: float):
+            """
+            Rotate the AlphaBot2 by a specified angle in degrees.
 
+            Parameters
+            ----------
+            degrees: float
+                The angle in degrees to rotate. Positive for left, negative for right.
+            """
             # Calculates the theoretical Duration of the rotation
             duration = abs(degrees) / self.ROTATION_DEG_PER_SEC
 
@@ -84,34 +134,48 @@ class AlphaBotAgent(Agent):
             await asyncio.sleep(duration)
             self.ab.stop()
 
-        async def process_command(self, command):
+        
+        async def process_command(self, command: str):
+            """
+            Process the received command and execute corresponding actions on the AlphaBot2.
+
+            Parameters
+            ----------
+            command: str
+                The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
+            """
             command = command.strip().lower()
             
             if command == "forward":
+                # Move the AlphaBot2 forward for a short duration.
                 logger.info("[Behaviour] Moving forward...")
                 self.ab.forward()
                 await asyncio.sleep(self.STEP_DURATION)
                 self.ab.stop()
                 
             elif command == "backward":
+                # Move the AlphaBot2 backward for a short duration.
                 logger.info("[Behaviour] Moving backward...")
                 self.ab.backward()
                 await asyncio.sleep(self.STEP_DURATION)
                 self.ab.stop()
                 
             elif command == "left":
+                # Turn the AlphaBot2 left for a short duration.
                 logger.info("[Behaviour] Turning left...")
                 self.ab.left()
                 await asyncio.sleep(self.ROTATION_DURATION)
                 self.ab.stop()
                 
             elif command == "right":
+                # Turn the AlphaBot2 right for a short duration.
                 logger.info("[Behaviour] Turning right...")
                 self.ab.right()
                 await asyncio.sleep(self.ROTATION_DURATION)
                 self.ab.stop()
                 
             elif command.startswith("motor "):
+                # Set custom motor speeds for the AlphaBot2. Command format: 'motor <left_speed> <right_speed>'
                 try:
                     _, left, right = command.split()
                     left_speed = int(left)
@@ -133,10 +197,16 @@ class AlphaBotAgent(Agent):
                     logger.error("[Behavior] Invalid rotation command. Use 'rotation <degrees>'")
 
             elif command == "stop":
+                # Stop the AlphaBot2 immediately.
                 logger.info("[Behaviour] Stopping...")
                 self.agent.ab.stop()
 
+            elif command == "init":
+                logger.info("[Behaviour] Start robot.")
+                #self.agent.add_behaviour(self.agent.XMPPPathRequest(self.nav_recipent))
+
             elif command.startswith("instructions "):
+                # Execute a series of instructions periodically. Command format: 'instructions <instr1> <instr2> ...'
                 instructions = command.split()
                 self.agent.add_behaviour(self.agent.XMPPExecutePath(instructions[1:]))
 
@@ -144,12 +214,26 @@ class AlphaBotAgent(Agent):
                 logger.warning(f"[Behaviour] Unknown command: {command}")
 
     class XMPPPathRequest(OneShotBehaviour):
-        def __init__(self, target):
+        """
+        Behavior to send an initial path request to the navigation agent.
+        """
+        def __init__(self, target: str):
+            """
+            Initialize the behavior with the target recipient for the path request.
+
+            Parameters
+            ----------
+            target: str
+                The JID of the navigation agent to which the path request will be sent.
+            """
             super().__init__()
             self.target = target
             logger.info("[Behaviour] Ready to request a path.")
         
         async def run(self):
+            """
+            Send a path request message to the navigation agent.
+            """
             logger.info("[Behaviour] Sending path request...")
             msg = Message(to=self.target)
             msg.set_metadata("performative", "request")
@@ -159,76 +243,60 @@ class AlphaBotAgent(Agent):
             logger.info("[Behaviour] Request send.")
 
     class XMPPExecutePath(PeriodicBehaviour):
-            def __init__(self, instructions):
-                super().__init__(period=1)
-                self.instructions = instructions
-                logger.info("[Behaviour] Ready to execute instructions.")
+        """
+        Behavior to execute a series of instructions received from the navigation agent.
+        """
+        def __init__(self, instructions: list(str), period: float = 1):
+            """
+            Initialize the behavior with the list of instructions to execute and the execution period.
 
-            async def run(self):
-                if not self.instructions:
-                    logger.info("[Behavior] Path complete.")
-                    self.kill()
-                    return
+            Parameters
+            ----------
+            instructions: list(str)
+                A list of instructions to execute, e.g., ["forward", "left", "forward", "right"].
+            period: float
+                The time interval (in seconds) between executing each instruction.
+            """
+            super().__init__(period=period)
+            self.instructions = instructions
+            logger.info("[Behavior] Ready to execute instructions.")
 
-                step = self.instructions.pop(0)
-                logger.info(f"[Behavior] Dispatching step to listener: {step}")
-                msg = Message(to=str(self.agent.jid))
-                msg.set_metadata("performative", "inform")
-                msg.body = step
-                await self.send(msg)
+        async def run(self):
+            """ Execute the next instruction in the list. """
+            logger.info("[Behaviour] Executing instruction...")
+            if not self.instructions:
+                logger.info("[Behavior] Path complete.")
+                self.kill()
+                return
 
+            step = self.instructions.pop(0)
+            logger.info(f"[Behavior] Dispatching step to listener: {step}")
+            msg = Message(to=str(self.agent.jid))
+            msg.set_metadata("performative", "inform")
+            msg.body = step
+            await self.send(msg)
 
-    class XMPPSensorsBehavior(PeriodicBehaviour):
-        async def on_start(self):
+    class TESTPeriodicSensors(PeriodicBehaviour):
+        def __init__(self, period):
+            super().__init__(period=period)
             if self.agent.ab is None:
                 logger.info("[Behavior] Initializing AlphaBot2...")
                 self.agent.ab = AlphaBot2()
-            logger.info("[Behavior] Ready to broadcast data sensors.")
-            self.red_color = Color(255, 0, 0)
-            self.orange_color = Color(125, 200, 0)
-        
-        async def run(self):
-            logger.info("[Behavior] Collect sensors data...")
-            try:
-                dr, dl = self.agent.ab.get_ioa()
-                status_r = "OBSTACLE" if dr == 0 else "CLEAR"
-                status_l = "OBSTACLE" if dl == 0 else "CLEAR"
-                if dr == 0:
-                    self.agent.ab.set_led(0,self.red_color)
-                else:
-                    self.agent.ab.set_led(0,self.orange_color)
-                if dl == 0:
-                    self.agent.ab.set_led(3,self.red_color)
-                else:
-                    self.agent.ab.set_led(3,self.orange_color)
-
-                logging.info(f"[Sensor] Right Infrared Obstacle: {dr} ({status_r})")
-                logging.info(f"[Sensor] Left  Infrared Obstacle: {dl} ({status_l})")
-
-                tr_sensor = self.agent.ab.get_tr_value()
-                logging.info(f"[Sensor] TR sensors values: {tr_sensorcl}")
-                c = 255*sum(tr_sensor)/(5000)
-                color = Wheel(c)
-                self.agent.ab.set_led(1,color)
-                self.agent.ab.set_led(2,color)
-            except Exception as e:
-                logger.error(f"[Error] Sensor Behavior exception: {str(e)}", exc_info=True)
-
-    class XMPPCameraRequest(OneShotBehavior):
-        def __init__(self, requester_jid):
-            super().__init__()
-            self.requester_jid = requester_jid
-            logger.info("[Behavior] Requesting photo.")
+            logger.info(f"[Behavior] Ready to test sensors every {period} secondes.")
 
         async def run(self):
-            msg = Message(to=self.requester_jid)
-            msg.set_metadata("performative", "inform")
-            msg.body = self.agent.ab.get_photo()
-
-            logger.info("[Behavior] Sending photo.")
-            await self.send(msg)
+            logger.info("[Behavior] Reading sensors...")
+            analog_data = self.agent.ab.get_analog_values()
+            for i, d in enumerate(analog_data):
+                logger.info(f"[Sensor] Analog chanel {i}; {d}")
+            
+            battery_level = self.agent.ab.get_battery_level()
+            logger.info(f"[Sensor] Battery level; {battery_level}")
 
     async def setup(self):
+        """
+        Setup the agent and add its behaviors.
+        """
         logger.info("[Agent] AlphaBotAgent starting setup...")
         logger.info(f"[Agent] Will connect as {self.jid} to server {os.environ.get('XMPP_SERVER', 'prosody')}")
         
@@ -240,22 +308,25 @@ class AlphaBotAgent(Agent):
         # init_request = self.XMPPPathRequest(self.nav_recipent)
         # self.add_behaviour(init_request)
         
-        logger.info("[Agent] Behaviours added, setup complete.")
-
+        logger.info("[Agent] Behaviors added, setup complete.")
 
 async def main():
+    # Read XMPP credentials and configuration from environment variables
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
     xmpp_username = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent")
     xmpp_jid = f"{xmpp_username}@{xmpp_domain}"
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
 
+    # Navigation recipient (the agent that will receive path requests)
     nav_recipent = os.environ.get("NAV_RECIPENT", "navigator@isc-coordinator.lan")
     
+    # Log the configuration for debugging purposes (masking the password)
     logger.info("Starting AlphaBot XMPP Agent")
     logger.info(f"XMPP JID: {xmpp_jid}")
     logger.info(f"XMPP Password: {'*' * len(xmpp_password)}")
     
     try:
+        # Create and start the agent
         agent = AlphaBotAgent(
             nav_recipent=nav_recipent,
             jid=xmpp_jid, 
