@@ -268,4 +268,3 @@ class AnalogSensors:
         battery_level = (battery_voltage - min_voltage) / (max_voltage - min_voltage)
         battery_level = max(0.0, min(100.0, battery_level * 100))  # Clamp to 0-100%
         return battery_level
-        
