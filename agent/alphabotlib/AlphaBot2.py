@@ -204,7 +204,7 @@ class AlphaBot2(object):
             A list of the values read from the analog sensors.
         """
         data = []
-        for i in range(10):
+        for i in range(11):
             data.append(self.analog_sensors.read_channel(i))
         return data
 
@@ -219,8 +219,8 @@ class AlphaBot2(object):
         color : Color
             The color to set the LED to.
         """
-        strip.setPixelColor(led_id%self.LED_COUNT, color)
-        strip.show()
+        self.strip.setPixelColor(led_id%self.LED_COUNT, color)
+        self.strip.show()
 
     # def get_photo(self):
     #     """
