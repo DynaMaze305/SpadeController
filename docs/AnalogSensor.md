@@ -105,7 +105,7 @@ print(f"Battery: {level:.1f}%")
 ### How it works
 
 1. Reads ADC channel 10  
-2. Converts the raw value to voltage using `vref`  
+2. Converts the raw value to voltage using `vref` (3.3 V)  
 3. Applies the voltage divider ratio  
 4. Maps the voltage to a percentage between `min_voltage` and `max_voltage`  
 
@@ -120,7 +120,9 @@ print(f"Battery: {level:.1f}%")
 ### Notes
 
 - AlphaBot2 uses a **2S Li‑ion pack** (nominal 7.4 V)  
-- Fully charged voltage may exceed the default `max_voltage`  
+- Fully charged voltage may exceed the default `max_voltage`
+    - This is due to the `vref` and divider composition limiting the max measure.
+    - If `max_voltage` exceeds `divider_ratio` * `vref` = 6.6 V, then it is replaced.
 - The method clamps the result to **0–100%**
 
 ---
