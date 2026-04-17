@@ -19,7 +19,7 @@ class AnalogSensors:
         channels (0–10), converting raw ADC values to voltages, and retrieving the
         robot's battery voltage using the built-in voltage divider on the AlphaBot2.
 
-        AI generated (Copilot)
+        Implemented with assistance from AI (Copilot)
 
         Parameters
         ----------
@@ -85,11 +85,11 @@ class AnalogSensors:
         GPIO.output(self.CS, GPIO.HIGH)
         GPIO.output(self.CLK, GPIO.LOW)
 
-    def read_channel(self, channel):
+    def read_channel(self, channel: int) -> int:
         """
         Read a raw 10-bit ADC value (0–1023) from the specified TLC chips channel.
 
-        This code was take from the original TRSensor class and adapted to be more general and reusable. The TLC chips requires a specific sequence of operations to read a channel, which is seemingly implemented working in TRSensor.
+        This code was taken from the original TRSensor class and adapted to be more general and reusable. The TLC chips requires a specific sequence of operations to read a channel, which is seemingly implemented working in TRSensor.
 
         Parameters
         ----------
