@@ -93,7 +93,7 @@ class AlphaBotAgent(Agent):
             if duration is None:
                 duration = abs(distance) / self.FORWARD_MM_PER_SEC
 
-            if distance > 0:
+            if distance < 0:
                 self.ab.setMotor(pwm_left, pwm_right)
             else:
                 self.ab.setMotor(-pwm_left, -pwm_right)
