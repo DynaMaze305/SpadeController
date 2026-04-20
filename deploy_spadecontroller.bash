@@ -71,6 +71,9 @@ echo "Generated .env for bot $bot_choice" >> $LOGFILE
 SSH_PORT=${SSH_PORT:-22}
 RSYNC_OPTS=${RSYNC_OPTS:--avz --delete}
 
+
+echo "Deploying folder to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
+echo "Using rsync options: ${RSYNC_OPTS}"
 echo "Deploying folder to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}" >> $LOGFILE
 echo "Using rsync options: ${RSYNC_OPTS}" >> $LOGFILE
 
