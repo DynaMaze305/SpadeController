@@ -91,7 +91,8 @@ class AlphaBotAgent(Agent):
             msg = await self.receive(timeout=10)
             if msg:
                 logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
-                await self.process_command(msg.body)
+                keyboard_signal = msg.get_metadata("source") == "keyboard"
+                await self.process_command(msg.body, override_stop=keyboard_signal)
                 
                 # Send a confirmation response
                 reply = Message(to=str(msg.sender))
@@ -102,7 +103,7 @@ class AlphaBotAgent(Agent):
             else:
                 logger.debug("[Behaviour] No message received during timeout.")
         
-        async def process_command(self, command: str):
+        async def process_command(self, command: str, override_stop: bool = False):
             """
             Process the received command and execute corresponding actions on the AlphaBot2.
 
@@ -113,7 +114,7 @@ class AlphaBotAgent(Agent):
             """
             command = command.strip().lower()
 
-            if self.agent.emergency_brake and command not in ("stop",):
+            if self.agent.emergency_brake and not override_stop and command not in ("stop",):
                 logger.warning(f"Command '{command}' blocked — obstacle detected.")
                 return
 
