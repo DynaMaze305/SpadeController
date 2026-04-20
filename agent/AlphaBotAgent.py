@@ -1,6 +1,5 @@
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
-from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 import asyncio
 import os
@@ -69,6 +68,7 @@ class AlphaBotAgent(Agent):
         super().__init__(jid, password, verify_security=verify_security)
         self.nav_recipent = nav_recipent
         self.ab = None
+        self.emergency_brake = False
 
     class XMPPCommandListener(CyclicBehaviour):
         """
@@ -112,35 +112,27 @@ class AlphaBotAgent(Agent):
                 The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
             """
             command = command.strip().lower()
-            
+
+            if self.agent.emergency_brake and command not in ("stop",):
+                logger.warning(f"Command '{command}' blocked — obstacle detected.")
+                return
+
             if command == "forward":
-                # Move the AlphaBot2 forward for a short duration.
                 logger.info("[Behaviour] Moving forward...")
                 self.agent.ab.forward()
-                await asyncio.sleep(2)
-                self.agent.ab.stop()
-                
+
             elif command == "backward":
-                # Move the AlphaBot2 backward for a short duration.
                 logger.info("[Behaviour] Moving backward...")
                 self.agent.ab.backward()
-                await asyncio.sleep(2)
-                self.agent.ab.stop()
-                
+
             elif command == "left":
-                # Turn the AlphaBot2 left for a short duration.
                 logger.info("[Behaviour] Turning left...")
                 self.agent.ab.left()
-                await asyncio.sleep(2)
-                self.agent.ab.stop()
-                
+
             elif command == "right":
-                # Turn the AlphaBot2 right for a short duration.
                 logger.info("[Behaviour] Turning right...")
                 self.agent.ab.right()
-                await asyncio.sleep(2)
-                self.agent.ab.stop()
-                
+
             elif command.startswith("motor "):
                 # Set custom motor speeds for the AlphaBot2. Command format: 'motor <left_speed> <right_speed>'
                 try:
@@ -149,8 +141,6 @@ class AlphaBotAgent(Agent):
                     right_speed = int(right)
                     logger.info(f"[Behaviour] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
                     self.agent.ab.setMotor(left_speed, right_speed)
-                    await asyncio.sleep(2)
-                    self.agent.ab.stop()
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
                     
@@ -231,6 +221,32 @@ class AlphaBotAgent(Agent):
             logger.info(f"[Behaviour] Next instruction: {i}")
             await self.agent.XMPPCommandListener.process_command(self, i)
 
+    class EmergencyBrakeBehaviour(PeriodicBehaviour):
+        """
+        Behaviour unsing the front infrared sensors to detect obstacles and trigger an emergency brake if needed.
+        """
+
+        def __init__(self):
+            # set the period at wich the check of obstacle is made
+            super().__init__(period=0.1)
+
+        async def on_start(self):
+            logger.info("EmergencyBrakeBehaviour syteme is [ON]")
+
+        async def run(self):
+            DR, DL = self.agent.ab.get_ioa()
+            danger_level = (DR == 0) + (DL == 0)
+            obstacle = danger_level > 0
+
+            if obstacle and not self.agent.emergency_brake:
+                self.agent.emergency_brake = True
+                self.agent.ab.stop()
+                logger.warning(" -- Obstacle detected -- command blocked.")
+
+            elif not obstacle and self.agent.emergency_brake:
+                self.agent.emergency_brake = False
+                logger.info(" -- Path clear -- command unlocked.")
+
     class TESTPeriodicSensors(PeriodicBehaviour):
         def __init__(self, period):
             super().__init__(period=period)
@@ -247,8 +263,8 @@ class AlphaBotAgent(Agent):
             analog_data = self.agent.ab.get_analog_values()
             for i, d in enumerate(analog_data):
                 logger.info(f"[Sensor] Analog channel {i}; {d}")
-            for i in range(4):
-                self.agent.ab.set_led(i, Wheel(((i + self.ctn) * 256 // 4) % 256))
+            # for i in range(4):
+            #    self.agent.ab.set_led(i, Wheel(((i + self.ctn) * 256 // 4) % 256))
             self.ctn += 1
             battery_level = self.agent.ab.get_battery_level()
             logger.info(f"[Sensor] Battery level; {battery_level}")
@@ -267,6 +283,9 @@ class AlphaBotAgent(Agent):
         # Add first init request
         init_request = self.XMPPPathRequest(self.nav_recipent)
         self.add_behaviour(init_request)
+
+        emergency_brake_behaviour = self.EmergencyBrakeBehaviour()
+        self.add_behaviour(emergency_brake_behaviour)
 
         # Add periodic sensor reading behaviour (for testing)
         sensor_behaviour = self.TESTPeriodicSensors(period=10)  # Read sensors every 30 seconds
