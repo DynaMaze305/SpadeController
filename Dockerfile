@@ -1,8 +1,24 @@
-FROM dtcooper/raspberrypi-os:python3.9
+FROM --platform=arm64 dtcooper/raspberrypi-os:python3.13
 
-RUN apt update
-RUN apt install -y ttf-wqy-zenhei python3-pip python3-smbus python3-serial
+ENV PYTHONUNBUFFERED=1
 
-RUN pip install --no-cache-dir RPi.GPIO spidev rpi_ws281x spade==3.3.3
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        python3-venv \
+        python3-smbus \
+        python3-serial \
+        python3-pip \
+        libcap-dev \
+        python3-picamera2 \
+        python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a venv to install dependencies
+# with system python but not in system packages
+RUN /usr/bin/python3 -m venv --system-site-packages /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 CMD ["python", "-m", "agent"]
