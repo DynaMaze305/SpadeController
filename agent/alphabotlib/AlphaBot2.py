@@ -44,8 +44,8 @@ class AlphaBot2(object):
         self.BIN2 = bin2
         self.ENA = ena
         self.ENB = enb
-        self.PA  = 50
-        self.PB  = 50
+        self.PA  = 25
+        self.PB  = 25
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
@@ -125,8 +125,8 @@ class AlphaBot2(object):
 
     def left(self):
         """Turn the robot itself on the left."""
-        self.PWMA.ChangeDutyCycle(30)
-        self.PWMB.ChangeDutyCycle(30)
+        self.PWMA.ChangeDutyCycle(10)
+        self.PWMB.ChangeDutyCycle(15)
         GPIO.output(self.AIN1,GPIO.HIGH)
         GPIO.output(self.AIN2,GPIO.LOW)
         GPIO.output(self.BIN1,GPIO.LOW)
@@ -134,8 +134,8 @@ class AlphaBot2(object):
 
     def right(self):
         """Turn the robot itself on the right."""
-        self.PWMA.ChangeDutyCycle(30)
-        self.PWMB.ChangeDutyCycle(30)
+        self.PWMA.ChangeDutyCycle(15)
+        self.PWMB.ChangeDutyCycle(15)
         GPIO.output(self.AIN1,GPIO.LOW)
         GPIO.output(self.AIN2,GPIO.HIGH)
         GPIO.output(self.BIN1,GPIO.HIGH)
