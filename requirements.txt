@@ -1,4 +1,9 @@
+spade>=3.3.3
+slixmpp<=1.9.1
 RPi.GPIO
 spidev
 rpi_ws281x
-spade==3.3.3
+aiofiles
+fastapi
+uvicorn
+slixmpp
