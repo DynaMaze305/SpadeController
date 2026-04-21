@@ -1,12 +1,10 @@
+import os
+import logging
+
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
-import asyncio
-import os
-import time
-import logging
 
-# Import AlphaBot2 library
 from agent.alphabotlib.AlphaBot2 import AlphaBot2
 
 # Import rpi_ws281x for LED color
@@ -224,11 +222,11 @@ class AlphaBotAgent(Agent):
 
     class EmergencyBrakeBehaviour(PeriodicBehaviour):
         """
-        Behaviour unsing the front infrared sensors to detect obstacles and trigger an emergency brake if needed.
+        Behaviour using the front infrared sensors to detect obstacles and trigger an emergency brake if needed.
         """
 
         def __init__(self):
-            # set the period at wich the check of obstacle is made
+            # Period : timing pour le check d'obstacles
             super().__init__(period=0.1)
 
         async def on_start(self):
@@ -237,16 +235,17 @@ class AlphaBotAgent(Agent):
         async def run(self):
             DR, DL = self.agent.ab.get_ioa()
             danger_level = (DR == 0) + (DL == 0)
+            # Donc 3 niveaux de danger : 0 = aucun, 1 = 1 senseurs alerté (attention) et 2 = les 2 senseurs alertés (maximal)
             obstacle = danger_level > 0
 
             if obstacle and not self.agent.emergency_brake:
                 self.agent.emergency_brake = True
                 self.agent.ab.stop()
-                logger.warning(" -- Obstacle detected -- command blocked.")
+                logger.warning(" -- Obstacle detected -- command blocked -- ")
 
             elif not obstacle and self.agent.emergency_brake:
                 self.agent.emergency_brake = False
-                logger.info(" -- Path clear -- command unlocked.")
+                logger.info(" -- Path clear -- command unlocked -- ")
 
     class TESTPeriodicSensors(PeriodicBehaviour):
         def __init__(self, period):
