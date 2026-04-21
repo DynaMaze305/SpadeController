@@ -27,10 +27,12 @@ class AlphaBotAgent(Agent):
         STEP_DURATION = 0.5 # seconds
         ROTATION_DURATION = 1.0 # seconds
         ROTATION_DEG_PER_SEC = 45 # degree per seconds
-        ROTATION_PWM_DEFAULT = 20 # duty cycle percentage (0-100)
-        LEFT_RIGHT_RATIO = 1.1
+        ROTATION_PWM_DEFAULT = 20 # duty cycle percentage
+        LEFT_RIGHT_RATIO = 1.01
         FORWARD_PWM_LEFT = 0.4
         FORWARD_MM_PER_SEC = 15
+        SMOOTH_STEPS = 5
+        SMOOTH_TIME = 0.15
 
         async def on_start(self):
             logger.info("[Behaviour] Initializing AlphaBot2...")
@@ -53,11 +55,22 @@ class AlphaBotAgent(Agent):
             else:
                 logger.debug("[Behavior] No message received during timeout.")
 
+        # decrementing the motors to 0 instead of abrupt stop
+        async def smooth_stop(self, pwm_left, pwm_right, steps=SMOOTH_STEPS, smoothing_time=SMOOTH_TIME):
+            step_time = smoothing_time / steps
+            for i in range(steps, 0, -1):
+                left = int(abs(pwm_left) * i / steps)
+                right = int(abs(pwm_right) * i / steps)
+                self.ab.PWMA.ChangeDutyCycle(left)
+                self.ab.PWMB.ChangeDutyCycle(right)
+                await asyncio.sleep(step_time)
+            self.ab.stop()
+
         # Functions that rotates the robot
         # Takes an angle in degrees as a parameter
         async def rotate_by(self, degrees: float, duration: float = None, pwm: int = None, ratio: int = None):
             if pwm is None:
-                pwm_left = self.ROTATION_DEG_PER_SEC
+                pwm_left = self.ROTATION_PWM_DEFAULT
             else:
                 pwm_left = pwm
 
@@ -66,16 +79,18 @@ class AlphaBotAgent(Agent):
             else:
                 pwm_right = pwm_left * ratio
 
-            logger.info(f"[Behaviour] Rotating {degrees:+.1f} deg (duration={duration:.2f}s, pwm={pwm})")
+            if duration is None:
+                duration = abs(degrees) / self.ROTATION_DEG_PER_SEC
 
-            # Executes the rotation via setMotor so we control PWM ourselves
+            logger.info(f"[Behaviour] Rotating {degrees:+.1f} deg (duration={duration:.2f}s, pwm={pwm_left})")
+
             if degrees > 0:
                 self.ab.setMotor(-pwm_left, pwm_right)
             else:
                 self.ab.setMotor(pwm_left, -pwm_right)
 
-            await asyncio.sleep(duration)
-            self.ab.stop()
+            await asyncio.sleep(duration - self.SMOOTH_TIME)
+            await self.smooth_stop(pwm_left, pwm_right)
 
         # Functions that moves the robot forward / backward
         # Takes a distance in mm as parameter
@@ -90,16 +105,21 @@ class AlphaBotAgent(Agent):
             else:
                 pwm_right = pwm_left * ratio
 
-            if duration is None:
-                duration = abs(distance) / self.FORWARD_MM_PER_SEC
+            if distance is None:
+                is_backward = duration < 0
+                duration = abs(duration)
+            else:
+                is_backward = distance < 0
+                if duration is None:
+                    duration = abs(distance) / self.FORWARD_MM_PER_SEC
 
-            if distance < 0:
+            if is_backward:
                 self.ab.setMotor(pwm_left, pwm_right)
             else:
                 self.ab.setMotor(-pwm_left, -pwm_right)
 
-            await asyncio.sleep(duration)
-            self.ab.stop()
+            await asyncio.sleep(duration - self.SMOOTH_TIME)
+            await self.smooth_stop(pwm_left, pwm_right)
 
         async def process_command(self, command, sender):
             command = command.strip().lower()
@@ -145,9 +165,17 @@ class AlphaBotAgent(Agent):
                 try:
                     parts = command.split()
                     angle = float(parts[1])
-                    duration = int(parts[2]) if len(parts) > 2 else None
+                    duration = float(parts[2]) if len(parts) > 2 else None
                     pwm = int(parts[3]) if len(parts) > 3 else None
                     ratio = float(parts[4]) if len(parts) > 4 else None
+
+                    if duration == 0:
+                        duration = None
+                    if pwm == 0:
+                        pwm = None
+                    if ratio == 0:
+                        ratio = None
+
                     await self.rotate_by(angle, duration, pwm, ratio)
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid rotation command")
@@ -155,11 +183,21 @@ class AlphaBotAgent(Agent):
             elif command.startswith("move "):
                 try:
                     parts = command.split()
-                    angle = float(parts[1])
-                    duration = int(parts[2]) if len(parts) > 2 else None
+                    distance = float(parts[1])
+                    duration = float(parts[2]) if len(parts) > 2 else None
                     pwm = int(parts[3]) if len(parts) > 3 else None
                     ratio = float(parts[4]) if len(parts) > 4 else None
-                    await self.forward_by(angle, duration, pwm, ratio)
+
+                    if distance == 0:
+                        distance = None
+                    if duration == 0:
+                        duration = None
+                    if pwm == 0:
+                        pwm = None
+                    if ratio == 0:
+                        ratio = None
+
+                    await self.forward_by(distance, duration, pwm, ratio)
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid move command")
 
