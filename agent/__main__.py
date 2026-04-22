@@ -30,7 +30,7 @@ class AlphaBotAgent(Agent):
         ROTATION_PWM_DEFAULT = 20 # duty cycle percentage
         LEFT_RIGHT_RATIO = 1.01
         FORWARD_PWM_LEFT = 0.4
-        FORWARD_MM_PER_SEC = 15
+        FORWARD_MM_PER_SEC = 100
         SMOOTH_STEPS = 5
         SMOOTH_TIME = 0.15
 
@@ -81,15 +81,22 @@ class AlphaBotAgent(Agent):
 
             if duration is None:
                 duration = abs(degrees) / self.ROTATION_DEG_PER_SEC
+                is_positive = degrees > 0
+            else:
+                if degrees != 0:
+                    is_positive = degrees > 0
+                else:
+                    is_positive = duration > 0
+                duration = abs(duration)
 
-            logger.info(f"[Behaviour] Rotating {degrees:+.1f} deg (duration={duration:.2f}s, pwm={pwm_left})")
+            logger.info(f"[Behaviour] Rotating deg={degrees:+.1f} duration={duration:.2f}s pwm={pwm_left} positive={is_positive}")
 
-            if degrees > 0:
+            if is_positive:
                 self.ab.setMotor(-pwm_left, pwm_right)
             else:
                 self.ab.setMotor(pwm_left, -pwm_right)
 
-            await asyncio.sleep(duration - self.SMOOTH_TIME)
+            await asyncio.sleep(max(0.0, duration - self.SMOOTH_TIME))
             await self.smooth_stop(pwm_left, pwm_right)
 
         # Functions that moves the robot forward / backward
@@ -112,6 +119,8 @@ class AlphaBotAgent(Agent):
                 is_backward = distance < 0
                 if duration is None:
                     duration = abs(distance) / self.FORWARD_MM_PER_SEC
+
+            logger.info(f"[Behaviour] Moving dist={distance} duration={duration:.2f}s pwm={pwm_left} ratio={pwm_right/pwm_left:.3f} backward={is_backward}")
 
             if is_backward:
                 self.ab.setMotor(pwm_left, pwm_right)
@@ -270,7 +279,7 @@ import asyncio
 
 async def main():
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
-    xmpp_username = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent")
+    xmpp_username = os.environ.get("XMPP_USERNAME", "alphabot23-agent@isc-coordinator.lan")
     xmpp_jid = f"{xmpp_username}@{xmpp_domain}"
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
 
