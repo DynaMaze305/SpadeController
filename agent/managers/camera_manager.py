@@ -52,7 +52,7 @@ class CameraManager:
         self._initialized = True
 
     # -----------------------------
-    # STREAMING
+    # STREAMING (Currently in development)
     # -----------------------------
     def start_stream(self):
         if self.running:
@@ -140,6 +140,9 @@ class CameraManager:
         self.strip.show()
 
 
+# -----------------------------
+# STREAMING (Currently in development)
+# -----------------------------
 class StreamHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path != "/stream":
