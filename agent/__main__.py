@@ -96,8 +96,9 @@ class AlphaBotAgent(Agent):
             else:
                 self.ab.setMotor(pwm_left, -pwm_right)
 
-            await asyncio.sleep(max(0.0, duration - self.SMOOTH_TIME))
-            await self.smooth_stop(pwm_left, pwm_right)
+            smooth_time = min(self.SMOOTH_TIME, duration / 2)
+            await asyncio.sleep(duration - smooth_time)
+            await self.smooth_stop(pwm_left, pwm_right, smoothing_time=smooth_time)
 
         # Functions that moves the robot forward / backward
         # Takes a distance in mm as parameter
@@ -127,8 +128,9 @@ class AlphaBotAgent(Agent):
             else:
                 self.ab.setMotor(-pwm_left, -pwm_right)
 
-            await asyncio.sleep(duration - self.SMOOTH_TIME)
-            await self.smooth_stop(pwm_left, pwm_right)
+            smooth_time = min(self.SMOOTH_TIME, duration / 2)
+            await asyncio.sleep(duration - smooth_time)
+            await self.smooth_stop(pwm_left, pwm_right, smoothing_time=smooth_time)
 
         async def process_command(self, command, sender):
             command = command.strip().lower()

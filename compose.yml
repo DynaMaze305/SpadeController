@@ -13,7 +13,7 @@ services:
       XMPP_SERVER: "prosody"
       XMPP_PORT: 5222
       XMPP_DOMAIN: "isc-coordinator.lan"
-      XMPP_USERNAME: "alphabot23-agent"
+      XMPP_USERNAME: "alphabot21-agent"
       XMPP_PASSWORD: "top_secret"
       PYTHONUNBUFFERED: 1
     extra_hosts:
