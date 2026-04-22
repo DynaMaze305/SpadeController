@@ -1,5 +1,3 @@
-import time
-
 # Import necessary libraries for GPIO control (Raspberry Pi)
 import RPi.GPIO as GPIO
 
