@@ -94,16 +94,16 @@ class TestCameraReceiver(Agent):
             logger.info("[Behaviour] TestRequestStream started")
         
         async def run(self):
-            logger.info("[Behaviour] Sending photo request to camera agent")
+            logger.info("[Behaviour] Sending stream request to camera agent")
             msg = Message(to=self.agent.camera_jid)
             msg.set_metadata("performative", "request")
             msg.body = "start_stream"
             await self.send(msg)
-            logger.info("[Behaviour] Photo request sent")
+            logger.info("[Behaviour] Stream request sent")
 
 
     async def setup(self):
-        logger.info("[Agent] CameraAgent is starting...")
+        logger.info("[Agent] TestCameraReceiver is starting...")
 
         # Add the XMPP command listener behaviour
         self.add_behaviour(self.XMPPCommandListener())
@@ -111,4 +111,4 @@ class TestCameraReceiver(Agent):
         # Test: Add a behaviour to request a photo from the camera agent after startup
         # self.add_behaviour(self.TestRequestPhoto())
 
-        logger.info("[Agent] CameraAgent setup complete")
+        logger.info("[Agent] TestCameraReceiver setup complete")
