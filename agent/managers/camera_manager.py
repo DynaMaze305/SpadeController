@@ -6,6 +6,9 @@ import base64
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+# Additional imports for RGB LED strip
+from rpi_ws281x import Adafruit_NeoPixel, Color
+
 class CameraManager:
     _instance = None
 
@@ -14,7 +17,7 @@ class CameraManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, led_count=4, led_pin=18, led_freq_hz=800000, led_dma=5, led_brightness=255, led_invert=False):
         if hasattr(self, "_initialized"):
             return
 
@@ -30,6 +33,21 @@ class CameraManager:
         self.http_server = None
         self.running = False
         self.lock = threading.Lock()
+
+        # LED strip configuration:
+        self.LED_COUNT = led_count        # Number of LED pixels.
+        LED_PIN        = led_pin        # GPIO pin connected to the pixels (must support PWM!).
+        LED_FREQ_HZ    = led_freq_hz    # LED signal frequency in hertz (usually 800khz)
+        LED_DMA        = led_dma        # DMA channel to use for generating signal (try 5)
+        LED_BRIGHTNESS = led_brightness # Set to 0 for darkest and 255 for brightest
+        LED_INVERT     = led_invert     # True to invert the signal (when using NPN transistor level shift)
+
+        self.strip = Adafruit_NeoPixel(self.LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS)
+
+        self.strip.begin()
+        for i in range(self.LED_COUNT):
+            self.strip.setPixelColor(i, Color(0, 0, 0)) # Shutdown the LEDs -> black
+        self.strip.show()
 
         self._initialized = True
 
@@ -103,6 +121,24 @@ class CameraManager:
                 f.write(base64.b64decode(data))
 
             return data
+
+    # -----------------------------
+    # RGB LED
+    # -----------------------------
+    def set_led(self, led_id: int, color: Color):
+        """
+        Set the color of a specific LED on the strip.
+
+        Parameters
+        ----------
+        led_id : int
+            The ID of the LED to set.
+        color : Color
+            The color to set the LED to.
+        """
+        self.strip.setPixelColor(led_id%self.LED_COUNT, color)
+        self.strip.show()
+
 
 class StreamHandler(BaseHTTPRequestHandler):
     def do_GET(self):
