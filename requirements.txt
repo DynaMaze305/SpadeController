@@ -1,4 +1,4 @@
-spade>=3.3.3
+spade==3.3.3
 slixmpp<=1.9.1
 RPi.GPIO
 spidev
