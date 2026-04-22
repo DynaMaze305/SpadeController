@@ -1,4 +1,4 @@
-FROM --platform=arm64 dtcooper/raspberrypi-os:python3.13
+FROM --platform=arm64 dtcooper/raspberrypi-os:python3.9
 
 ENV PYTHONUNBUFFERED=1
 
