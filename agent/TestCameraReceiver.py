@@ -54,6 +54,9 @@ class TestCameraReceiver(Agent):
                 logger.info(f"[Behaviour] Image successfully saved at {filename}")
                 return None
             
+            # -----------------------------
+            # STREAMING (Currently in development)
+            # -----------------------------
             elif command.startswith("stream"):
                 _, response = command.split(" ", 1)
                 if response == "started":

@@ -56,7 +56,7 @@ class CameraAgent(Agent):
         async def process_command(self, command):
             command = command.strip().lower()
             # -----------------------------
-            # Streaming commands
+            # Streaming commands (Currently in development)
             # -----------------------------
             if command == "start_stream":
                 if self.agent.cam.running:
