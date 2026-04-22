@@ -11,7 +11,37 @@ class SensorsManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, dr=16, dl=19, cs=5, clk=25, addr=24, data=23, vref=3.3, adc_bit=10):
+    def __init__(self, dr:int =16, dl:int =19, cs:int =5, clk:int =25, addr:int =24, data:int =23, vref:int =3.3, adc_bit:int =10):
+        """
+        Initialize the infrared object avoidance and the ADC interface
+        
+        Configure all required GPIO pins.
+
+        Parameters
+        ----------
+        dr : int
+            GPIO pin used for the DR (Detector Right) signal.
+        dl : int
+            GPIO pin used for the DL (Detector Left) signal.
+        cs : int
+            GPIO pin used as the chip-select line for the ADC.
+        clk : int
+            GPIO pin used as the clock output for serial communication.
+        addr : int
+            GPIO pin used to select the ADC input channel.
+        data : int
+            GPIO pin used to read serial data from the ADC.
+        vref : float
+            Reference voltage used by the ADC for conversion scaling.
+        adc_bit : int
+            Resolution of the ADC in bits.
+
+        Notes
+        -----
+        DR and DL are simple digital IR sensors used to detect nearby obstacles.
+        This method configures all GPIO pins, sets default states for CS and CLK,
+        and prevents re-initialization if the object has already been set up.
+        """
         if hasattr(self, "_initialized"):
             return
         self.DR = dr
@@ -37,12 +67,38 @@ class SensorsManager:
         GPIO.output(self.CLK, GPIO.LOW)
 
     def get_ioa_right(self) -> int:
+        """
+        Read the state of the right infrared obstacle-avoidance detector.
+
+        Returns
+        -------
+        int
+            0 if an obstacle is detected, 1 if the path is clear.
+        """
         return GPIO.input(self.DR)
 
     def get_ioa_left(self) -> int:
+        """
+        Read the state of the left infrared obstacle-avoidance detector.
+
+        Returns
+        -------
+        int
+            0 if an obstacle is detected, 1 if the path is clear.
+        """
         return GPIO.input(self.DL)
 
     def get_ioa(self) -> tuple[int, int]:
+        """
+        Read both infrared obstacle-avoidance detectors.
+
+        Returns
+        -------
+        tuple[int, int]
+            (right_state, left_state), where each value is:
+            - 0 -> obstacle detected
+            - 1 -> no obstacle
+        """
         return self.get_ioa_right(), self.get_ioa_left()
 
     def get_analog_sensor_value(self, channel: int) -> int:

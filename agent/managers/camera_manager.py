@@ -17,7 +17,41 @@ class CameraManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, led_count=4, led_pin=18, led_freq_hz=800000, led_dma=5, led_brightness=255, led_invert=False):
+    def __init__(self, led_count:int =4, led_pin:int =18, led_freq_hz:int =800000, led_dma:int =5, led_brightness:int =255, led_invert:bool =False):
+        """
+        Initialize the camera, HTTP streaming state, and NeoPixel LED strip.
+
+        TODO: Stream is in development
+        TODO: Should a the servo motor to move the camera
+
+        This constructor sets up the Picamera2 instance with both video and still
+        configurations, prepares thread-safe state for frame capture and streaming,
+        and initializes an addressable RGB LED strip connected to a PWM-capable
+        GPIO pin. Initialization is skipped if the object has already been created.
+
+        Parameters
+        ----------
+        led_count : int
+            Number of NeoPixel LEDs in the strip.
+        led_pin : int
+            GPIO pin used to drive the LED strip (must support PWM).
+        led_freq_hz : int
+            Signal frequency for the LED strip, typically 800 kHz.
+        led_dma : int
+            DMA channel used for generating the LED signal.
+        led_brightness : int
+            Brightness level (0–255) applied to all LEDs.
+        led_invert : bool
+            Whether to invert the output signal (used with certain transistor
+            level-shifting circuits).
+
+        Notes
+        -----
+        - Initializes Picamera2 with 640x480 video and still configurations.
+        - Creates a lock for thread-safe access to JPEG frames.
+        - Sets all LEDs to black (off) after initialization.
+        - Ensures the initialization routine runs only once.
+        """
         if hasattr(self, "_initialized"):
             return
 
@@ -93,7 +127,24 @@ class CameraManager:
     # -----------------------------
     # STILL CAPTURE
     # -----------------------------
-    def capture_still(self):
+    def capture_still(self) -> str:
+        """
+        Capture a image with the picamera of the AlphaBot2-Pi
+
+        Capture a still image by pausing the video stream, switching to still mode,
+        taking a JPEG photo, then restoring streaming.
+
+        Returns
+        -------
+        str
+            Base64-encoded JPEG image.
+
+        Notes
+        -----
+        - Uses a thread lock to ensure exclusive camera access.
+        - Saves the captured image to ./agent/still_camera.jpg.
+        - Temporarily stops and restarts the camera to switch modes.
+        """
         with self.lock:
             # Pause stream
             self.running = False
