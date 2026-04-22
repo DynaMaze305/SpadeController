@@ -6,6 +6,7 @@ import uvicorn
 import logging
 
 from agent.CameraAgent import CameraAgent
+from agent.TestCameraReceiver import TestCameraReceiver
 
 from agent.AlphaBotAgent import AlphaBotAgent
 
@@ -60,20 +61,27 @@ async def main():
 
 async def start_camera():
     # Read XMPP credentials and configuration from environment variables
-    xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
-    xmpp_username = os.environ.get("XMPP_CAMERA_USERNAME", "camera-bot-agent")
-    xmpp_botname = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent")
+    xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody") # isc-coordinator.lan
+    xmpp_username = os.environ.get("XMPP_CAMERA_USERNAME", "camera-bot-agent") #camera-bot-agent
+    xmpp_botname = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent") # isc-alphabot23
     xmpp_jid = f"{xmpp_username}-{xmpp_botname}@{xmpp_domain}"
-    xmpp_password = os.environ.get("XMPP_PASSWORD", "_")
+    xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
+
+    ssh_user = os.environ.get("REMOTE_USER", "pi") # hesso
+    ssh_server = os.environ.get("REMOTE_HOST", "alpha-pi-zero.local") # isc-alphabot23.local
     
     # Log the configuration for debugging purposes (masking the password)
     logger.info("Starting Camera XMPP Agent")
     logger.info(f"XMPP JID: {xmpp_jid}")
     logger.info(f"XMPP Password: {'*' * len(xmpp_password)}")
+    logger.info(f"SSH User: {ssh_user}")
+    logger.info(f"SSH Server: {ssh_server}")
     
     try:
         # Create and start the agent
         agent = CameraAgent(
+            ssh_user=ssh_user,
+            ssh_server=ssh_server,
             jid=xmpp_jid, 
             password=xmpp_password,
             verify_security=False
@@ -83,14 +91,14 @@ async def start_camera():
         await agent.start(auto_register=True)
         logger.info("CameraAgent started successfully!")
         
-        try:
-            while agent.is_alive():
-                logger.debug("CameraAgent is alive and running...")
-                await asyncio.sleep(10)  # Log every 10 seconds that agent is alive
-        except KeyboardInterrupt:
-            logger.info("Keyboard interrupt received")
-            await agent.stop()
-            logger.info("CameraAgent stopped by user.")
+        # try:
+        #     while agent.is_alive():
+        #         logger.debug("CameraAgent is alive and running...")
+        #         await asyncio.sleep(10)  # Log every 10 seconds that agent is alive
+        # except KeyboardInterrupt:
+        #     logger.info("Keyboard interrupt received")
+        #     await agent.stop()
+        #     logger.info("CameraAgent stopped by user.")
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
 
