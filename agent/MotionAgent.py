@@ -28,6 +28,7 @@ FORWARD_PWM_LEFT = 0.4
 FORWARD_MM_PER_SEC = 100
 SMOOTH_STEPS = 5
 SMOOTH_TIME = 0.15
+
 class MotionAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
         async def on_start(self):
@@ -261,6 +262,7 @@ class MotionAgent(Agent):
         logger.info(f"[Agent] Will connect as {self.jid}")
 
         self.motion_manager = MotionManager()
+
         self.emergency_brake = False
         self.queue = asyncio.Queue()
 
