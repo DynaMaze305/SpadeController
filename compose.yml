@@ -10,12 +10,14 @@ services:
       - /dev/vchiq:/dev/vchiq
       - /dev/video0:/dev/video0
       - /dev/dma_heap:/dev/dma_heap
+    extra_hosts:
+      - "isc-coordinator.lan:192.168.88.250"
+      - "isc-coordinator2.lan:192.168.88.226"
     cap_add:
       - SYS_RAWIO
     environment:
       XMPP_SERVER: "prosody"
       XMPP_PORT: 5222
-      XMPP_DOMAIN: "isc-coordinator.lan"
       PYTHONUNBUFFERED: 1
       LIBCAMERA_LOG_LEVELS: "*:ERROR"
     ports:
