@@ -39,9 +39,9 @@ async def start_motion_agent() -> Agent:
             verify_security=False
         )
         
-        logger.info("Agent created, attempting to start...")
+        logger.info("MotionAgent created, attempting to start...")
         await agent.start(auto_register=True)
-        logger.info("Agent started successfully!")
+        logger.info("MotionAgent started successfully!")
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
     
@@ -51,12 +51,12 @@ async def start_camera() -> Agent:
     # Read XMPP credentials and configuration from environment variables
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody") # isc-coordinator.lan
     xmpp_username = os.environ.get("XMPP_CAMERA_USERNAME", "camera-bot-agent") #camera-bot-agent
-    xmpp_botname = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent") # isc-alphabot23
+    xmpp_botname = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent") # alphabot23-agent
     xmpp_jid = f"{xmpp_username}-{xmpp_botname}@{xmpp_domain}"
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
 
     ssh_user = os.environ.get("REMOTE_USER", "pi") # hesso
-    ssh_server = os.environ.get("REMOTE_HOST", "alpha-pi-zero.local") # isc-alphabot23.local
+    ssh_server = os.environ.get("REMOTE_HOST", "alpha-pi-zero.local") # alphabot23-agent.local
     
     # Log the configuration for debugging purposes (masking the password)
     logger.info("Starting Camera XMPP Agent")
