@@ -9,7 +9,7 @@ from spade.message import Message
 from agent.managers.motion_manager import MotionManager
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("MotionAgent")
 
 # Enable SPADE and XMPP specific logging
@@ -32,27 +32,16 @@ class MotionAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
         async def on_start(self):
             logger.info("[Behaviour] Ready to receive commands.")
-            
+
         async def run(self):
             """
             Listen for incoming XMPP messages and process commands.
             """
+
             logger.info("[Behaviour] Waiting for messages...")
             msg = await self.receive(timeout=1)
             if msg:
-                logger.info(f"[Behaviour] Received command ({msg.sender})")
-                logger.info(f"\t\t{msg.body}")
-
-                # Send a confirmation response
-                reply = Message(to=str(msg.sender))
-                reply.set_metadata("performative", "inform")
-                reply.body = f"Executed command: {msg.body}"
-                await self.send(reply)
-                logger.info(f"[Behaviour] Sent reply to {msg.sender}")
-            else:
-                logger.debug("[Behavior] No message received?!")
-
-            logger.info("[Behaviour] Message consummed.")
+                await self.agent.queue.put(msg)
             return
 
         async def process_command(self, msg: Message):
@@ -275,9 +264,9 @@ class MotionAgent(Agent):
         self.emergency_brake = False
         self.queue = asyncio.Queue()
 
-        template = Template()
-        
         # Add command listener behaviour
+        template = Template()
+        template.set_metadata("performative", "request")
         self.add_behaviour(self.XMPPCommandListener(), template=template)
 
         # Add worker
