@@ -2,15 +2,15 @@ import asyncio
 import os
 import logging
 
-from spade.agent import Agent
+from spade.agent import Agent, Template
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 
 from agent.managers.motion_manager import MotionManager
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("AlphaBotAgent")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("MotionAgent")
 
 # Enable SPADE and XMPP specific logging
 for log_name in ["spade", "aioxmpp", "xmpp"]:
@@ -37,12 +37,11 @@ class MotionAgent(Agent):
             """
             Listen for incoming XMPP messages and process commands.
             """
-            logger.debug("[Behaviour] Waiting for messages...")
-            msg = await self.receive(timeout=None)
+            logger.info("[Behaviour] Waiting for messages...")
+            msg = await self.receive(timeout=1)
             if msg:
-                logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
-                keyboard_signal = msg.get_metadata("source") == "keyboard"
-                await self.process_command(msg.body, override_stop=keyboard_signal)
+                logger.info(f"[Behaviour] Received command ({msg.sender})")
+                logger.info(f"\t\t{msg.body}")
 
                 # Send a confirmation response
                 reply = Message(to=str(msg.sender))
@@ -51,7 +50,39 @@ class MotionAgent(Agent):
                 await self.send(reply)
                 logger.info(f"[Behaviour] Sent reply to {msg.sender}")
             else:
-                logger.debug("[Behavior] No message received during timeout.")
+                logger.debug("[Behavior] No message received?!")
+
+            logger.info("[Behaviour] Message consummed.")
+            return
+
+        async def process_command(self, msg: Message):
+            command = msg.body.split()
+
+            if command.startswith("obstacles"):
+                state = command.split(' ', 1)
+                if state == "detected":
+                    self.agent.emergency_brake = True
+                    self.agent.motion_manager.stop()
+                elif state == "clear":
+                    self.agent.emergency_brake = False
+
+
+    class Worker(CyclicBehaviour):
+        async def on_start(self):
+            logger.info("[Behaviour] Ready to work.")
+
+        async def run(self):
+            msg = await self.agent.queue.get()
+
+            keyboard_signal = msg.get_metadata("source") == "keyboard"
+            await self.process_command(msg.body, override_stop=keyboard_signal)
+
+            # Send a confirmation response
+            reply = Message(to=str(msg.sender))
+            reply.set_metadata("performative", "inform")
+            reply.body = f"Executed command: {msg.body}"
+            await self.send(reply)
+            logger.info(f"[Behaviour] Sent reply to {msg.sender}")
 
         # decrementing the motors to 0 instead of abrupt stop
         async def smooth_stop(self, pwm_left, pwm_right, steps=SMOOTH_STEPS, smoothing_time=SMOOTH_TIME):
@@ -242,9 +273,17 @@ class MotionAgent(Agent):
 
         self.motion_manager = MotionManager()
         self.emergency_brake = False
+        self.queue = asyncio.Queue()
+
+        template = Template()
         
         # Add command listener behaviour
-        command_behaviour = self.XMPPCommandListener()
-        self.add_behaviour(command_behaviour)
+        self.add_behaviour(self.XMPPCommandListener(), template=template)
+
+        # Add worker
+        worker_template = Template()
+        worker_template.set_metadata("never", "match")
+        self.add_behaviour(self.Worker(), template=worker_template)
+
 
         logger.info("[Agent] Behaviours added, setup complete.")
