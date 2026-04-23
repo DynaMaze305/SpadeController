@@ -51,14 +51,18 @@ class MotionManager:
         self.PWMB.start(0)
 
         self._initialized = True
+        self._last_pwm_left = 0
+        self._last_pwm_right = 0
 
     def setPWMA(self, value: int):
         """Set the duty cycle for motor A."""
+        self._last_pwm_right = value
         self.PWMA.ChangeDutyCycle(value)
 
     def setPWMB(self, value: int):
         """Set the duty cycle for motor B."""
-        self.PWMB.ChangeDutyCycle(value)	
+        self._last_pwm_left = value
+        self.PWMB.ChangeDutyCycle(value)
 
     def setPWM(self, pa: int, pb: int):
         """Set the duty cycle for the motors."""
@@ -125,3 +129,52 @@ class MotionManager:
             GPIO.output(self.BIN1,GPIO.LOW)
             GPIO.output(self.BIN2,GPIO.HIGH)
             self.PWMB.ChangeDutyCycle(0 - left)
+
+    def read_motion_status(self) -> dict:
+        """
+        Return a dictionary describing the robot's current motion state.
+        Includes direction and PWM values for both motors.
+
+        Return
+        ------
+        dict
+            A dictionary encoding the motion data
+            {
+                [left|right]_motor: {
+                    "direction": str,
+                    "pwm": int
+                }
+            }
+        """
+        # Read GPIO pin states
+        ain1 = GPIO.input(self.AIN1)
+        ain2 = GPIO.input(self.AIN2)
+        bin1 = GPIO.input(self.BIN1)
+        bin2 = GPIO.input(self.BIN2)
+
+        # Determine direction of each motor
+        def decode_direction(p1, p2):
+            if p1 == GPIO.LOW and p2 == GPIO.LOW:
+                return "stopped"
+            if p1 == GPIO.LOW and p2 == GPIO.HIGH:
+                return "forward"
+            if p1 == GPIO.HIGH and p2 == GPIO.LOW:
+                return "backward"
+            return "unknown"
+
+        left_dir = decode_direction(bin1, bin2)
+        right_dir = decode_direction(ain1, ain2)
+
+        # Read PWM duty cycles
+        status = {
+            "left_motor": {
+                "direction": left_dir,
+                "pwm": self._last_pwm_left
+            },
+            "right_motor": {
+                "direction": right_dir,
+                "pwm": self._last_pwm_right
+            }
+        }
+
+        return status
