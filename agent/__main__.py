@@ -2,10 +2,12 @@ import asyncio
 import os
 import logging
 
+from spade.agent import Agent
+
 from agent.CameraAgent import CameraAgent
 from agent.TestCameraReceiver import TestCameraReceiver
 
-from agent.AlphaBotAgent import AlphaBotAgent
+from agent.MotionAgent import MotionAgent
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,15 +19,12 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.setLevel(logging.DEBUG)
     log.propagate = True
 
-async def start_alphabot():
+async def start_motion_agent() -> Agent:
     # Read XMPP credentials and configuration from environment variables
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
     xmpp_username = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent")
     xmpp_jid = f"{xmpp_username}@{xmpp_domain}"
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
-
-    # Navigation recipient (the agent that will receive path requests)
-    nav_recipent = os.environ.get("NAV_RECIPIENT", "navigator@isc-coordinator.lan")
     
     # Log the configuration for debugging purposes (masking the password)
     logger.info("Starting AlphaBot XMPP Agent")
@@ -34,8 +33,7 @@ async def start_alphabot():
     
     try:
         # Create and start the agent
-        agent = AlphaBotAgent(
-            nav_recipent=nav_recipent,
+        agent = MotionAgent(
             jid=xmpp_jid, 
             password=xmpp_password,
             verify_security=False
@@ -44,20 +42,12 @@ async def start_alphabot():
         logger.info("Agent created, attempting to start...")
         await agent.start(auto_register=True)
         logger.info("Agent started successfully!")
-        
-        # For debug purpose only as it will block there the code
-        # try:
-        #     while agent.is_alive():
-        #         logger.debug("Agent is alive and running...")
-        #         await asyncio.sleep(10)  # Log every 10 seconds that agent is alive
-        # except KeyboardInterrupt:
-        #     logger.info("Keyboard interrupt received")
-        #     await agent.stop()
-        #     logger.info("Agent stopped by user.")
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
+    
+    return agent
 
-async def start_camera():
+async def start_camera() -> Agent:
     # Read XMPP credentials and configuration from environment variables
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody") # isc-coordinator.lan
     xmpp_username = os.environ.get("XMPP_CAMERA_USERNAME", "camera-bot-agent") #camera-bot-agent
@@ -88,20 +78,12 @@ async def start_camera():
         logger.info("CameraAgent created, attempting to start...")
         await agent.start(auto_register=True)
         logger.info("CameraAgent started successfully!")
-        
-        # For debug purpose only as it will block there the code
-        # try:
-        #     while agent.is_alive():
-        #         logger.debug("CameraAgent is alive and running...")
-        #         await asyncio.sleep(10)  # Log every 10 seconds that agent is alive
-        # except KeyboardInterrupt:
-        #     logger.info("Keyboard interrupt received")
-        #     await agent.stop()
-        #     logger.info("CameraAgent stopped by user.")
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
+    
+    return agent
 
-async def start_test_camera():
+async def start_test_camera() -> Agent:
     # Read XMPP credentials and configuration from environment variables
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
     xmpp_username = os.environ.get("XMPP_CAMERA_USERNAME", "camera-bot-agent")
@@ -130,23 +112,14 @@ async def start_test_camera():
         await test_agent.start(auto_register=True)
         logger.info("TestCameraReceiver started successfully!")
 
-        # For debug purpose only as it will block there the code
-        # try:
-        #     while test_agent.is_alive():
-        #         logger.debug("TestCameraReceiver is alive and running...")
-        #         await asyncio.sleep(10)  # Log every 10 seconds that agent is alive
-        # except KeyboardInterrupt:
-        #     logger.info("Keyboard interrupt received")
-        #     await test_agent.stop()
-        #     logger.info("TestCameraReceiver stopped by user.")
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
 
-
+    return test_agent
 
 
 async def main():
-    await start_alphabot()
+    motion_agent = await start_motion_agent()
     # await start_camera()
     # await start_test_camera()
 
@@ -155,6 +128,8 @@ async def main():
     # Keep the program alive
     while True:
         await asyncio.sleep(1)
+        if motion_agent.is_alive():
+            logger.debug("MotionAgent is alive and running...")
         
 if __name__ == "__main__":
     try:
