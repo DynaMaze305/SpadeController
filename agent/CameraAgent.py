@@ -28,7 +28,7 @@ class CameraAgent(Agent):
             Listen for incoming XMPP messages and process commands.
             """
             logger.info("[Behaviour] Waiting for messages...")
-            msg = await self.receive(timeout=None)
+            msg = await self.receive(timeout=1)
             if msg:
                 logger.info(f"[Behaviour] Received command ({msg.sender}):")
                 logger.debug(f"\t\t{msg.body}")
