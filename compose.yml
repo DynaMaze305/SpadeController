@@ -4,6 +4,7 @@ services:
   agent:
     build: .
     container_name: spadecontroller-agent
+    profiles: ["agent"]
     privileged: true
     devices:
       - /dev/gpiomem:/dev/gpiomem
@@ -18,7 +19,6 @@ services:
     environment:
       XMPP_SERVER: "prosody"
       XMPP_PORT: 5222
-      PYTHONUNBUFFERED: 1
       LIBCAMERA_LOG_LEVELS: "*:ERROR"
     ports:
       - "8000:8000"   # Camera stream
@@ -27,3 +27,24 @@ services:
       - ./agent:/agent
     env_file:
       - ./.env.remote
+  test-agent:
+    build: .
+    container_name: spadecontroller-test
+    profiles: ["test"]
+    privileged: false
+    devices:
+      - /dev/gpiomem:/dev/gpiomem
+    extra_hosts:
+      - "isc-coordinator.lan:192.168.88.250"
+      - "isc-coordinator2.lan:192.168.88.226"
+    cap_add:
+      - SYS_RAWIO
+    environment:
+      XMPP_SERVER: "prosody"
+      XMPP_PORT: 5222
+      LIBCAMERA_LOG_LEVELS: "*:ERROR"
+    volumes:
+      - ./agent:/agent
+    env_file:
+      - ./.env.remote
+    command: python agent/TestAgent.py
