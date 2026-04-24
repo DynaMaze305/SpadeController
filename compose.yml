@@ -26,4 +26,4 @@ services:
       - /run/udev:/run/udev:ro
       - ./agent:/agent
     env_file:
-      - ./.env
+      - ./.env.remote
