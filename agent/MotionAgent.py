@@ -1,4 +1,5 @@
 import asyncio
+import os
 import logging
 
 from spade.agent import Agent, Template
@@ -24,9 +25,30 @@ ROTATION_DEG_PER_SEC = 45 # degree per seconds
 ROTATION_PWM_DEFAULT = 20 # duty cycle percentage
 LEFT_RIGHT_RATIO = 1.01
 FORWARD_PWM_LEFT = 0.4
-FORWARD_MM_PER_SEC = 100
 SMOOTH_STEPS = 5
 SMOOTH_TIME = 0.15
+
+
+# Camera calibration
+CALIBRATION_CM = 20.0
+CALIBRATION_PX = 68.00
+PX_PER_MM = CALIBRATION_PX / (CALIBRATION_CM * 10)
+
+# y_pixels = slope * x_seconds + intercept
+FORWARD_MODEL_SLOPE = 62.86
+FORWARD_MODEL_INTERCEPT = -5.97
+BACKWARD_MODEL_SLOPE = 70.65
+BACKWARD_MODEL_INTERCEPT = -6.22
+
+
+def duration_for_distance(distance_mm: float) -> float:
+    pixels = abs(distance_mm) * PX_PER_MM
+    if distance_mm >= 0:
+        slope, intercept = FORWARD_MODEL_SLOPE, FORWARD_MODEL_INTERCEPT
+    else:
+        slope, intercept = BACKWARD_MODEL_SLOPE, BACKWARD_MODEL_INTERCEPT
+    return max(0.0, (pixels - intercept) / slope)
+
 
 class MotionAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
@@ -37,6 +59,7 @@ class MotionAgent(Agent):
             """
             Listen for incoming XMPP messages and process commands.
             """
+
             logger.info("[Behaviour] Waiting for messages...")
             msg = await self.receive(timeout=1)
             if msg:
@@ -148,7 +171,7 @@ class MotionAgent(Agent):
             else:
                 is_backward = distance < 0
                 if duration is None:
-                    duration = abs(distance) / FORWARD_MM_PER_SEC
+                    duration = duration_for_distance(distance)
 
             logger.info(f"[Behaviour] Moving dist={distance} duration={duration:.2f}s pwm={pwm_left} ratio={pwm_right/pwm_left:.3f} backward={is_backward}")
 
@@ -240,6 +263,9 @@ class MotionAgent(Agent):
 
                     if distance == 0:
                         distance = None
+                    else:
+                        duration = duration_for_distance(distance)
+                        logger.info("f[Behaviour] Calulated duration: {duration}")
                     if duration == 0:
                         duration = None
                     if pwm == 0:
@@ -263,7 +289,6 @@ class MotionAgent(Agent):
         logger.info(f"[Agent] Will connect as {self.jid}")
 
         self.motion_manager = MotionManager()
-
         self.emergency_brake = False
         self.queue = asyncio.Queue()
 

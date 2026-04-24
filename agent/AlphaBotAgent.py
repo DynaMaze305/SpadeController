@@ -86,7 +86,7 @@ class AlphaBotAgent(Agent):
             Listen for incoming XMPP messages and process commands.
             """
             logger.debug("[Behaviour] Waiting for messages...")
-            msg = await self.receive(timeout=10)
+            msg = await self.receive(timeout=9999)
             if msg:
                 logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
                 keyboard_signal = msg.get_metadata("source") == "keyboard"

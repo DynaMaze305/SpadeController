@@ -3,35 +3,32 @@
 # Deployment script for SpadeController
 LOGFILE=deploy.log
 echo "$(date) - Deployment started" >> $LOGFILE
-echo "$(date) - Deployment started"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_PATH="${SCRIPT_DIR}"
 
 # Load .env file (local config for deployment)
-ENV_FILE="${LOCAL_PATH}/.env.template"
+ENV_FILE="${LOCAL_PATH}/.env"
 if [ -f $ENV_FILE ]; then
     source $ENV_FILE
 else
     echo "$ENV_FILE file not found" >> $LOGFILE
-    echo "$ENV_FILE file not found"
     exit 1
 fi
 
 # Validate required variables
-REQUIRED_VARS=(REMOTE_USER REMOTE_PATH XMPP_PASSWORD)
+REQUIRED_VARS=(REMOTE_USER REMOTE_PATH)
 for var in "${REQUIRED_VARS[@]}"; do
     if [ -z "${!var}" ]; then
         echo "Error: $var is not set in $ENV_FILE" >> $LOGFILE
-        echo "Error: $var is not set in $ENV_FILE"
         exit 1
     fi
 done
 
 # Select bot to deploy on
-read -rp "Select bot to deploy on (1-4): " bot_choice
-if [[ ! $bot_choice =~ ^[1-4]$ ]]; then
+read -rp "Select bot to deploy on (1 or 3): " bot_choice
+if [[ ! $bot_choice =~ ^[13]$ ]]; then
     echo "Invalid bot id, choice ${bot_choice}. Exiting." >> $LOGFILE
     echo "Invalid bot id, choice ${bot_choice}. Exiting."
     exit 1
@@ -123,7 +120,7 @@ read -rp "Proceed with deployment? (y/n) " confirm
 [[ "$confirm" != "y" ]] && exit 0
 
 # Run rsync
-rsync ${RSYNC_OPTS} -e "ssh -p ${SSH_PORT}" \
+rsync ${RSYNC_OPTS} --exclude='.venv' --exclude='.claude' --exclude='__pycache__' -e "ssh -p ${SSH_PORT}" \
     "${LOCAL_PATH}/" \
     "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
 
