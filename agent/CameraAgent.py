@@ -1,16 +1,15 @@
-from spade.agent import Agent
-from spade.behaviour import CyclicBehaviour
-from spade.message import Message
-
+import asyncio
 import logging
 
-import subprocess
+from spade.agent import Agent, Template
+from spade.behaviour import CyclicBehaviour, OneShotBehaviour
+from spade.message import Message
 
 from agent.managers.camera_manager import CameraManager
-
+from rpi_ws281x import Color
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("CameraAgent")
 
 # Enable SPADE and XMPP specific logging
@@ -20,69 +19,74 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.propagate = True
 
 class CameraAgent(Agent):
-    def __init__(self, ssh_user, ssh_server, jid, password, verify_security=False):
-        super().__init__(jid, password, verify_security=verify_security)
-        self.ssh_user = ssh_user
-        self.ssh_server = ssh_server
-        self.cam = CameraManager()
-        self.tunnel = None
-
     class XMPPCommandListener(CyclicBehaviour):
         async def on_start(self):
-            if self.agent.tunnel is None:
-                self.agent.tunnel = subprocess.Popen([
-                    "ssh", "-N",
-                    "-R", "8080:localhost:8000",
-                    f"{self.agent.ssh_user}@{self.agent.ssh_server}"
-                ])
-                logger.info("[Behaviour] SSH tunnel is active")
-            logger.info("[Behaviour] XMPPCommandListener started")
+            logger.info("[Behaviour] Ready to receive commands.")
 
         async def run(self):
-            logger.info("[Behaviour] Waiting for XMPP command...")
-            msg = await self.receive(timeout=10)
+            """
+            Listen for incoming XMPP messages and process commands.
+            """
+            logger.info("[Behaviour] Waiting for messages...")
+            msg = await self.receive(timeout=None)
             if msg:
-                logger.info(f"[Behaviour] Received message from {msg.sender}")
-                command = msg.body
-                response = await self.process_command(command)
-                if response:
-                    reply = Message(to=str(msg.sender.bare))
-                    reply.set_metadata("performative", "inform")
-                    reply.body = response
-                    await self.send(reply)
+                logger.info(f"[Behaviour] Received command ({msg.sender}):")
+                logger.debug(f"\t\t{msg.body}")
+
+                if msg.get_metadata("emergency"):
+                    await self.process_command(msg)
+                else:
+                    await self.queue.put(msg)
             else:
-                logger.info("[Behaviour] No message received within timeout")
-        
+                logger.debug("[Behavior] No message received?!")
+
+    class Worker(CyclicBehaviour):
+        async def on_start(self):
+            logger.info("[Behaviour] Ready to work.")
+
+        async def run(self):
+            msg = await self.agent.queue.get()
+
+            try:
+                response = await self.process_command(msg.body)
+            except RuntimeError as e:
+                logger.error(f"[Behaviour] Worker: RuntimeError ({e})during process message:\n{msg}")
+                response = f"Error: {e}"
+
+            # Send a confirmation response
+            reply = Message(to=str(msg.sender))
+            reply.set_metadata("performative", "inform")
+            reply.body = f"Executed command: {msg.body}\n{response}"
+            await self.send(reply)
+            logger.info(f"[Behaviour] Sent reply to {msg.sender}")
+
         async def process_command(self, command):
             command = command.strip().lower()
             # -----------------------------
             # Streaming commands (Currently in development)
             # -----------------------------
             if command == "start_stream":
-                if self.agent.cam.running:
+                if self.agent.camera_agent.running:
                     logger.warning("[Behaviour] Stream is already running")
                     return
-                self.agent.cam.start_stream()
+                self.agent.camera_agent.start_stream()
                 logger.info("[Behaviour] Camera stream started")
                 return "stream started"
 
             elif command == "stop_stream":
-                if not self.agent.cam.running:
+                if not self.agent.camera_agent.running:
                     logger.warning("[Behaviour] Stream is not running")
                     return
-                self.agent.cam.stop_stream()
+                self.agent.camera_agent.stop_stream()
                 logger.info("[Behaviour] Camera stream stopped")
                 return "stream stopped"
 
             elif command == "stream_connexion":
-                if self.agent.tunnel is None:
-                    logger.warning("[Behaviour] SSH tunnel is not active")
-                    return
                 logger.info("[Behaviour] Providing stream connection info")
-                return f"tunel_ssh http://{self.agent.ssh_server}:8080"
+                return
 
             elif command == "get_frame":
-                frame = self.agent.cam.get_jpeg_frame()
+                frame = self.agent.camera_agent.get_jpeg_frame()
                 if frame:
                     logger.info(f"[Behaviour] Retrieved JPEG frame")
                     return f"frame {str(frame)}"
@@ -93,17 +97,99 @@ class CameraAgent(Agent):
             # Still capture command
             # -----------------------------
             elif command == "capture_still":
-                img_data = self.agent.cam.capture_still()
+                img_data = self.agent.camera_agent.capture_still()
                 logger.info(f"[Behaviour] Captured still image")
                 return f"image {str(img_data)}"
+            
+            # -----------------------------
+            # Led commands
+            # -----------------------------
+            elif command.startswith("led "):
+                parts = command.split()
+                if len(parts) != 5:
+                    logger.error(f"[Behaviour] Invalid LED command format: {command}")
+                    return f"invalid led {command}"
+                try:
+                    led_id = int(parts[1])
+                    r = int(parts[2])
+                    g = int(parts[3])
+                    b = int(parts[4])
+
+                    # clamp or validate RGB
+                    for name, value in (("r", r), ("g", g), ("b", b)):
+                        if not 0 <= value <= 255:
+                            raise ValueError(f"{name} {value}")
+
+                    logger.info(f"[Behaviour] Set LED ({led_id}) to ({r}, {g}, {b})")
+                    self.agent.camera_manager.set_led(led_id, Color(r, g, b))
+
+                except ValueError as e:
+                    logger.error(f"[Behaviour] Invalid LED parameters: {e} out of range 0-255")
+                    return f"invalid led {command} {e}"
+
+                except Exception as e:
+                    logger.exception(f"[Behaviour] Unexpected error while setting LED: {e}")
+                    return f"error led {command} {e}"
+
+            elif command.startswith("leds "):
+                parts = command.split()
+
+                # Expect: leds id r g b id r g b ...
+                if (len(parts) - 1) % 4 != 0:
+                    logger.error(f"[Behaviour] Invalid LED command format: {command}")
+                    return f"invalide led {command}"
+
+                count = (len(parts) - 1) // 4
+                cmd = []
+
+                for i in range(count):
+                    base = 1 + 4 * i
+                    try:
+                        led_id = int(parts[base])
+                        r = int(parts[base + 1])
+                        g = int(parts[base + 2])
+                        b = int(parts[base + 3])
+
+                        # Validate RGB
+                        for name, value in (("r", r), ("g", g), ("b", b)):
+                            if not 0 <= value <= 255:
+                                raise ValueError(f"{name} {value}")
+
+                        logger.info(f"[Behaviour] Set LED ({led_id}) to ({r}, {g}, {b})")
+                        cmd.append([led_id,r, g,b])
+                        self.agent.camera_manager.set_led(led_id, Color(r, g, b))
+
+                    except ValueError as e:
+                        logger.error(f"[Behaviour] Invalid LED parameters for block {i}: {e}")
+                        return f"invalide led{i} {command} {e}"
+
+                    except Exception as e:
+                        logger.exception(f"[Behaviour] Unexpected error while setting LED {i}: {e}")
+                        return f"error led{i} {command} {e}"
+
+
             else:
                 logger.warning(f"[Behaviour] Unknown command: {command}")
             return None
 
     async def setup(self):
-        logger.info("[Agent] CameraAgent is starting...")
+        logger.info("[Agent] CameraAgent starting setup...")
+        logger.info(f"[Agent] Will connect as {self.jid}")
 
-        # Add the XMPP command listener behaviour
-        self.add_behaviour(self.XMPPCommandListener())
+        self.camera_manager = CameraManager()
 
-        logger.info("[Agent] CameraAgent setup complete")
+        self.emergency_brake = False
+        self.queue = asyncio.Queue()
+
+        # Add command listener behaviour
+        template = Template()
+        template.set_metadata("performative", "request")
+        self.add_behaviour(self.XMPPCommandListener(), template=template)
+
+        # Add worker
+        worker_template = Template()
+        worker_template.set_metadata("never", "match")
+        self.add_behaviour(self.Worker(), template=worker_template)
+
+
+        logger.info("[Agent] Behaviours added, setup complete.")
