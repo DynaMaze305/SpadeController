@@ -40,6 +40,10 @@ FORWARD_MODEL_INTERCEPT = -5.97
 BACKWARD_MODEL_SLOPE = 70.65
 BACKWARD_MODEL_INTERCEPT = -6.22
 
+POSITIVE_MODEL_SLOPE = 116.2
+POSITIVE_MODEL_INTERCEPT = -6.8
+NEGATIVE_MODEL_SLOPE = 126.6
+NEGATIVE_MODEL_INTERCEPT = -13.2
 
 def duration_for_distance(distance_mm: float) -> float:
     pixels = abs(distance_mm) * PX_PER_MM
@@ -49,6 +53,12 @@ def duration_for_distance(distance_mm: float) -> float:
         slope, intercept = BACKWARD_MODEL_SLOPE, BACKWARD_MODEL_INTERCEPT
     return max(0.0, (pixels - intercept) / slope)
 
+def duration_for_angle(angle: float) -> float:
+    if angle >= 0:
+        slope, intercept = POSITIVE_MODEL_SLOPE, POSITIVE_MODEL_INTERCEPT
+    else:
+        slope, intercept = NEGATIVE_MODEL_SLOPE, NEGATIVE_MODEL_INTERCEPT
+    return max(0.0, (angle - intercept) / slope)
 
 class MotionAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
@@ -131,17 +141,15 @@ class MotionAgent(Agent):
             else:
                 pwm_right = pwm_left * ratio
 
-            if duration is None:
-                duration = abs(degrees) / ROTATION_DEG_PER_SEC
-                is_positive = degrees > 0
-            else:
-                if degrees != 0:
-                    is_positive = degrees > 0
-                else:
-                    is_positive = duration > 0
+            if degrees is None:
+                is_positive = duration > 0
                 duration = abs(duration)
+            else:
+                is_positive = degrees > 0
+                if duration is None:
+                    duration = abs(degrees) / ROTATION_DEG_PER_SEC
 
-            logger.info(f"[Behaviour] Rotating deg={degrees:+.1f} duration={duration:.2f}s pwm={pwm_left} positive={is_positive}")
+            logger.info(f"[Behaviour] Rotating deg={degrees} duration={duration:.2f}s pwm={pwm_left} ratio={pwm_right/pwm_left:.3f} positive={is_positive}")
 
             if is_positive:
                 self.agent.motion_manager.setMotor(-pwm_left, pwm_right)
@@ -242,8 +250,11 @@ class MotionAgent(Agent):
                     pwm = int(parts[3]) if len(parts) > 3 else None
                     ratio = float(parts[4]) if len(parts) > 4 else None
 
-                    if duration == 0:
-                        duration = None
+                    if angle == 0:
+                        angle = None
+                    else:
+                        duration = duration_for_angle(angle)
+
                     if pwm == 0:
                         pwm = None
                     if ratio == 0:
