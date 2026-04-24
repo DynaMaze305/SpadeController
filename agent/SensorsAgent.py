@@ -18,6 +18,13 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.propagate = True
 
 class SensorsAgent(Agent):
+    def __init__(self, motion_jid: str, period_sensors: int, period_emergency: int,
+                 jid: str, password: str, verify_security = False):
+        super().__init__(jid, password, verify_security)
+        self.motion_jid = motion_jid
+        self.period_sensors = period_sensors
+        self.period_emergency = period_emergency
+
     class XMPPCommandListener(CyclicBehaviour):
         async def on_start(self):
             logger.info("[Behaviour] Ready to receive commands.")
@@ -159,7 +166,7 @@ class SensorsAgent(Agent):
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_analog_sensor_value(sensor_id)
 
             logger.debug(f"[Behaviour] Updated sensor data: {self.agent.data}")
-
+            self.agent.add_behaviour(self.agent.BroadcastData())
 
     class ReadEmergencySensors(PeriodicBehaviour):
         def __init__(self, period, start_at = None):
@@ -187,10 +194,23 @@ class SensorsAgent(Agent):
                 await self.send_emergency_clear("left")
 
         async def send_emergency(self, side: str):
-            pass
+            msg = Message(to=self.agent.motion_jid)
+            msg.set_metadata("performative", "request")
+            msg.set_metadata("emergency", side)
+            msg.body = f"obstacles detected"
+            await self.send(msg)
+            logger.info(f"[Behaviour] Sent emergency to {msg.sender}")
 
         async def send_emergency_clear(self, side: str):
-            pass
+            msg = Message(to=self.agent.motion_jid)
+            msg.set_metadata("performative", "request")
+            msg.set_metadata("emergency", side)
+            if self.emergency_left or self.emergency_right:
+                msg.body = f"obstacles still"
+            else:
+                msg.body = f"obstacles clear"
+            await self.send(msg)
+            logger.info(f"[Behaviour] Sent emergency to {msg.sender}")
 
     class BroadcastData(OneShotBehaviour):
         async def on_start(self):
@@ -208,7 +228,6 @@ class SensorsAgent(Agent):
                 await self.send(msg)
 
             logger.info("[Behaviour] Data broadcast complete.")
-
 
     async def setup(self):
         logger.info("[Agent] SensorsAgent starting setup...")
@@ -232,9 +251,10 @@ class SensorsAgent(Agent):
         self.add_behaviour(self.Worker(), worker_template)
 
         # Emergency sensors
-        self.add_behaviour(self.ReadEmergencySensors(period=1), worker_template)
+        logger.info(f"[Agent] Will provide emergency to {self.motion_jid}")
+        self.add_behaviour(self.ReadEmergencySensors(period=self.period_emergency), worker_template)
 
         # Regular sensors
-        self.add_behaviour(self.ReadSensors(period=10), worker_template)
+        self.add_behaviour(self.ReadSensors(period=self.period_sensors), worker_template)
 
         logger.info("[Agent] SensorsAgent setup complete.")
