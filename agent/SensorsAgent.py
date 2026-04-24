@@ -34,7 +34,7 @@ class SensorsAgent(Agent):
             Listen for incoming XMPP messages and process commands.
             """
             logger.info("[Behaviour] Waiting for messages...")
-            msg = await self.receive(timeout=None)
+            msg = await self.receive(timeout=1)
             if msg:
                 logger.info(f"[Behaviour] Received command ({msg.sender}):")
                 logger.debug(f"\t\t{msg.body}")
@@ -51,7 +51,7 @@ class SensorsAgent(Agent):
             msg = await self.agent.queue.get()
 
             try:
-                response = await self.process_command(msg)
+                response = await self.process_msg(msg)
             except RuntimeError as e:
                 logger.error(f"[Behaviour] Worker: RuntimeError ({e})during process message:\n{msg}")
                 response = f"Error: {e}"
@@ -178,7 +178,7 @@ class SensorsAgent(Agent):
             logger.info(f"[Behaviour] Emergency sensors every {self.period}s.")
 
         async def run(self):
-            right, left = self.agent.sensros_manager.get_ioa()
+            right, left = self.agent.sensors_manager.get_ioa()
             if right == 0:
                 if not self.emergency_right:
                     self.emergency_right = True
@@ -214,7 +214,7 @@ class SensorsAgent(Agent):
 
     class BroadcastData(OneShotBehaviour):
         async def on_start(self):
-            logger.info(f"[Behaviour] Broadcast sensors data every {self.period}s.")
+            logger.info(f"[Behaviour] Broadcast sensors.")
 
         async def run(self):
             if not self.agent.data:
@@ -235,7 +235,20 @@ class SensorsAgent(Agent):
 
         self.sensors_manager = SensorsManager()
         self.register_list = []
-        self.data = None
+        self.data = {
+            "digital": {
+                1: None,    # Right Infrared
+                2: None     # Left  Infrared
+            },
+            "analog": {
+                0: None,    # IR Line most left
+                1: None,    # IR Line left
+                2: None,    # IR Line center
+                3: None,    # IR Line right
+                4: None,    # IR Line most right
+                10: None,   # Battery measure (divider)
+            }
+        }
 
         # Queue for worker
         self.queue = asyncio.Queue()
