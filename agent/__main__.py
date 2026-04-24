@@ -43,10 +43,9 @@ async def start_motion_agent(run_agent: bool) -> Agent:
             logger.info("MotionAgent started successfully!")
         else:
             logger.info("MotionAgent created, but will not run!")
+        return agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
-    
-    return agent
 
 async def start_camera_agent(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
@@ -71,10 +70,9 @@ async def start_camera_agent(run_agent: bool) -> Agent:
             logger.info("CameraAgent started successfully!")
         else:
             logger.info("CameraAgent created, but will not run!")
+        return agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
-    
-    return agent
 
 async def start_sensors_agent(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
@@ -104,10 +102,10 @@ async def start_sensors_agent(run_agent: bool) -> Agent:
             logger.info("SensorsAgent started successfully!")
         else:
             logger.info("SensorsAgent created, but will not run!")
+        return agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
     
-    return agent
 
 async def start_test_camera() -> Agent:
     # Read XMPP credentials and configuration from environment variables
@@ -138,28 +136,53 @@ async def start_test_camera() -> Agent:
         await test_agent.start(auto_register=True)
         logger.info("TestCameraReceiver started successfully!")
 
+        return test_agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
 
-    return test_agent
-
-
 async def main():
-    motion_agent = await start_motion_agent()
-    camera_agent = await start_camera_agent()
-    sensors_agent = await start_sensors_agent()
+    motion_agent = await start_motion_agent(True)
+    camera_agent = await start_camera_agent(True)
+    sensors_agent = await start_sensors_agent(True)
 
-    logger.info("Agents started")
+    if motion_agent is None or camera_agent is None or sensors_agent is None:
+        logger.error("One or more agents failed to start. Exiting.")
+        return
 
-    # Keep the program alive
-    while True:
-        await asyncio.sleep(60)
-        if motion_agent.is_alive():
-            logger.info("MotionAgent is alive and running...")
-        if camera_agent.is_alive():
-            logger.info("CameraAgent is alive and running...")
-        if sensors_agent.is_alive():
-            logger.info("SensorsAgent is alive and running...")
+    logger.info("Agents started successfully")
+
+    try:
+        while True:
+            await asyncio.sleep(5)
+            running = False
+            logger.info("Display alive agents:")
+            if motion_agent:
+                if motion_agent.is_alive():
+                    logger.info("MotionAgent is alive and running...")
+                    running = True
+
+            if camera_agent:
+                if camera_agent.is_alive():
+                    logger.info("CameraAgent is alive and running...")
+                    running = True
+
+            if sensors_agent:
+                if sensors_agent.is_alive():
+                    logger.info("SensorsAgent is alive and running...")
+                    running = True
+
+            if not running:
+                break
+
+    except asyncio.CancelledError:
+        logger.warning("Main loop cancelled")
+
+    finally:
+        logger.info("Stopping agents...")
+        await motion_agent.stop()
+        await camera_agent.stop()
+        await sensors_agent.stop()
+        logger.info("All agents stopped cleanly")
         
 if __name__ == "__main__":
     try:
