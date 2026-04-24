@@ -11,7 +11,7 @@ LOCAL_PATH="${SCRIPT_DIR}"
 
 # Load .env file (local config for deployment)
 ENV_FILE="${LOCAL_PATH}/.env.template"
-if [ -f $ENV_FILE ]; thenprintf
+if [ -f $ENV_FILE ]; then
     source $ENV_FILE
 else
     echo "$ENV_FILE file not found" >> $LOGFILE
@@ -78,6 +78,7 @@ fi
 cp "$TEMPLATE" "$OUTPUT"
 
 # Add header comment
+tmpfile=$(mktemp)
 {
     echo "# ---------------------------------------------------------"
     echo "# This file was generated automatically by deploy_spadecontroller.sh"
@@ -87,11 +88,16 @@ cp "$TEMPLATE" "$OUTPUT"
     echo
     echo "# Generated for bot $bot_choice on coordinator $coordinator"
     echo
-} >> "$OUTPUT"
+    cat "$OUTPUT"
+} > "$tmpfile"
+
+mv "$tmpfile" "$OUTPUT"
+
 
 sed -i "s|{{REMOTE_HOST}}|$REMOTE_HOST|g" "$OUTPUT"
 sed -i "s|{{XMPP_USERNAME}}|$XMPP_USERNAME|g" "$OUTPUT"
 sed -i "s|{{XMPP_PASSWORD}}|$XMPP_PASSWORD|g" "$OUTPUT"
+sed -i "s|{{XMPP_DOMAIN}}|$XMPP_DOMAIN|g" "$OUTPUT"
 
 sed -i "s|{{MOTION_AGENT}}|$MOTION_AGENT|g" "$OUTPUT"
 sed -i "s|{{CAMERA_AGENT}}|$CAMERA_AGENT|g" "$OUTPUT"
@@ -107,8 +113,10 @@ RSYNC_OPTS=${RSYNC_OPTS:--avz --delete --exclude='.env' --exclude='.env.template
 
 echo "Deploying folder to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}" >> $LOGFILE
 echo "Using rsync options: ${RSYNC_OPTS}" >> $LOGFILE
+echo "XMPP base JID will be: ${XMPP_USERNAME}@${XMPP_DOMAIN}" >> $LOGFILE
 echo "Deploying folder to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
 echo "Using rsync options: ${RSYNC_OPTS}"
+echo "XMPP base JID will be: ${XMPP_USERNAME}@${XMPP_DOMAIN}"
 
 # Confirm deployment
 read -rp "Proceed with deployment? (y/n) " confirm
