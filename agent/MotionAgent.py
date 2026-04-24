@@ -38,12 +38,18 @@ class MotionAgent(Agent):
             """
             Listen for incoming XMPP messages and process commands.
             """
-
             logger.info("[Behaviour] Waiting for messages...")
-            msg = await self.receive(timeout=1)
+            msg = await self.receive(timeout=None)
             if msg:
-                await self.agent.queue.put(msg)
-            return
+                logger.info(f"[Behaviour] Received command ({msg.sender}):")
+                logger.debug(f"\t\t{msg.body}")
+
+                if msg.get_metadata("emergency"):
+                    await self.process_command(msg)
+                else:
+                    await self.queue.put(msg)
+            else:
+                logger.debug("[Behavior] No message received?!")
 
         async def process_command(self, msg: Message):
             command = msg.body.split()
@@ -52,7 +58,7 @@ class MotionAgent(Agent):
                 state = command.split(' ', 1)
                 if state == "detected":
                     self.agent.emergency_brake = True
-                    self.agent.motion_manager.stop()
+                    self.agent.motion_manager.emergency_stop()
                 elif state == "clear":
                     self.agent.emergency_brake = False
 
@@ -65,12 +71,16 @@ class MotionAgent(Agent):
             msg = await self.agent.queue.get()
 
             keyboard_signal = msg.get_metadata("source") == "keyboard"
-            await self.process_command(msg.body, override_stop=keyboard_signal)
+            try:
+                response = await self.process_command(msg.body, override_stop=keyboard_signal)
+            except RuntimeError as e:
+                logger.error(f"[Behaviour] Worker: RuntimeError ({e})during process message:\n{msg}")
+                response = f"Error: {e}"
 
             # Send a confirmation response
             reply = Message(to=str(msg.sender))
             reply.set_metadata("performative", "inform")
-            reply.body = f"Executed command: {msg.body}"
+            reply.body = f"Executed command: {msg.body}\n{response}"
             await self.send(reply)
             logger.info(f"[Behaviour] Sent reply to {msg.sender}")
 
@@ -167,27 +177,27 @@ class MotionAgent(Agent):
 
             if command == "forward":
                 logger.info("[Behaviour] Moving forward...")
-                self.agent.motion_manager.forward()
+                self.agent.motion_manager.forward(emergency_override = override_stop)
                 await asyncio.sleep(STEP_DURATION)
-                self.agent.motion_manager.stop()
+                self.agent.motion_manager.stop(emergency_override = override_stop)
                 
             elif command == "backward":
                 logger.info("[Behaviour] Moving backward...")
-                self.agent.motion_manager.backward()
+                self.agent.motion_manager.backward(emergency_override = override_stop)
                 await asyncio.sleep(STEP_DURATION)
-                self.agent.motion_manager.stop()
+                self.agent.motion_manager.stop(emergency_override = override_stop)
                 
             elif command == "left":
                 logger.info("[Behaviour] Turning left...")
-                self.agent.motion_manager.left()
+                self.agent.motion_manager.left(emergency_override = override_stop)
                 await asyncio.sleep(ROTATION_DURATION)
-                self.agent.motion_manager.stop()
+                self.agent.motion_manager.stop(emergency_override = override_stop)
                 
             elif command == "right":
                 logger.info("[Behaviour] Turning right...")
-                self.agent.motion_manager.right()
+                self.agent.motion_manager.right(emergency_override = override_stop)
                 await asyncio.sleep(ROTATION_DURATION)
-                self.agent.motion_manager.stop()
+                self.agent.motion_manager.stop(emergency_override = override_stop)
                 
             elif command.startswith("motor "):
                 try:
@@ -195,9 +205,7 @@ class MotionAgent(Agent):
                     left_speed = int(left)
                     right_speed = int(right)
                     logger.info(f"[Behaviour] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
-                    self.agent.motion_manager.setMotor(left_speed, right_speed)
-                    await asyncio.sleep(STEP_DURATION)
-                    self.agent.motion_manager.stop()
+                    self.agent.motion_manager.setMotor(left_speed, right_speed, emergency_override = override_stop)
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
 
@@ -244,15 +252,7 @@ class MotionAgent(Agent):
 
             elif command == "stop":
                 logger.info("[Behaviour] Stopping...")
-                self.agent.motion_manager.stop()
-            
-            elif command == "init":
-                logger.info("[Behaviour] Start robot.")
-                #self.agent.add_behaviour(self.agent.XMPPPathRequest(self.nav_recipent))
-
-            elif command.startswith("instructions "):
-                instructions = command.split()
-                self.agent.add_behaviour(self.agent.XMPPExecutePath(instructions[1:]))
+                self.agent.motion_manager.stop(emergency_override = override_stop)
 
             else:
                 logger.warning(f"[Behaviour] Unknown command: {command}")
