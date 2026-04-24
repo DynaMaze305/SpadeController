@@ -108,6 +108,31 @@ class SensorsManager:
         """
         return self.get_ioa_right(), self.get_ioa_left()
 
+    def get_digital_sensor_value(self, sensor_id: int) -> int:
+        """
+        Read the value from a specific digital sensor.
+
+        Parameters
+        ----------
+        sensor_id : int
+            1: Right infrared obstacle-avoidance detector
+            2: Left infrared obstacle-avoidance detector
+
+        Returns
+        -------
+        int
+            The value read from the specified digital sensor.
+        """
+        digital = {
+            1: self.get_ioa_right,
+            2: self.get_ioa_left
+        }
+
+        if sensor_id not in digital:
+            raise ValueError("Invalid digital sensor ID")
+
+        return digital[sensor_id]()
+
     def get_analog_sensor_value(self, channel: int) -> int:
         """
         Read the value from a specific analog sensor channel.
@@ -199,7 +224,7 @@ class SensorsManager:
         """
         with self._lock:
             if channel < 0 or channel > 10:
-                raise ValueError("Channel must be between 0 and 10")
+                raise ValueError("Channel must be range in 0 to 10 included")
             value = [0,0]
             # Read the same channel twice to get the result (first read starts conversion, second read gets result)
             for j in range(2):
