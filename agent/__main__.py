@@ -8,6 +8,7 @@ from agent.CameraAgent import CameraAgent
 from agent.TestCameraReceiver import TestCameraReceiver
 
 from agent.MotionAgent import MotionAgent
+from agent.SensorsAgent import SensorsAgent
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -19,13 +20,11 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.setLevel(logging.DEBUG)
     log.propagate = True
 
-async def start_motion_agent() -> Agent:
+async def start_motion_agent(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
-    xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
-    xmpp_username = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent")
-    xmpp_jid = f"{xmpp_username}@{xmpp_domain}"
+    xmpp_jid = os.environ.get("MOTION_AGENT", "prosody")
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
-    
+
     # Log the configuration for debugging purposes (masking the password)
     logger.info("Starting AlphaBot XMPP Agent")
     logger.info(f"XMPP JID: {xmpp_jid}")
@@ -38,46 +37,73 @@ async def start_motion_agent() -> Agent:
             password=xmpp_password,
             verify_security=False
         )
-        
-        logger.info("MotionAgent created, attempting to start...")
-        await agent.start(auto_register=True)
-        logger.info("MotionAgent started successfully!")
+        if run_agent:
+            logger.info("MotionAgent created, attempting to start...")
+            await agent.start(auto_register=True)
+            logger.info("MotionAgent started successfully!")
+        else:
+            logger.info("MotionAgent created, but will not run!")
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
     
     return agent
 
-async def start_camera() -> Agent:
+async def start_camera_agent(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
-    xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody") # isc-coordinator.lan
-    xmpp_username = os.environ.get("XMPP_CAMERA_USERNAME", "camera-bot-agent") #camera-bot-agent
-    xmpp_botname = os.environ.get("XMPP_USERNAME", "alpha-pi-zero-agent") # alphabot23-agent
-    xmpp_jid = f"{xmpp_username}-{xmpp_botname}@{xmpp_domain}"
+    xmpp_jid = os.environ.get("CAMERA_AGENT", "prosody")
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
-
-    ssh_user = os.environ.get("REMOTE_USER", "pi") # hesso
-    ssh_server = os.environ.get("REMOTE_HOST", "alpha-pi-zero.local") # alphabot23-agent.local
     
     # Log the configuration for debugging purposes (masking the password)
     logger.info("Starting Camera XMPP Agent")
     logger.info(f"XMPP JID: {xmpp_jid}")
     logger.info(f"XMPP Password: {'*' * len(xmpp_password)}")
-    logger.info(f"SSH User: {ssh_user}")
-    logger.info(f"SSH Server: {ssh_server}")
     
     try:
         # Create and start the agent
         agent = CameraAgent(
-            ssh_user=ssh_user,
-            ssh_server=ssh_server,
             jid=xmpp_jid, 
             password=xmpp_password,
             verify_security=False
         )
-        
-        logger.info("CameraAgent created, attempting to start...")
-        await agent.start(auto_register=True)
-        logger.info("CameraAgent started successfully!")
+        if run_agent:
+            logger.info("CameraAgent created, attempting to start...")
+            await agent.start(auto_register=True)
+            logger.info("CameraAgent started successfully!")
+        else:
+            logger.info("CameraAgent created, but will not run!")
+    except Exception as e:
+        logger.error(f"Error starting agent: {str(e)}", exc_info=True)
+    
+    return agent
+
+async def start_sensors_agent(run_agent: bool) -> Agent:
+    # Read XMPP credentials and configuration from environment variables
+    xmpp_jid = os.environ.get("SENSORS_AGENT", "prosody")
+    xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
+
+    xmpp_motion_jid = os.environ.get("MOTION_AGENT","prosody")
+    
+    # Log the configuration for debugging purposes (masking the password)
+    logger.info("Starting Sensors XMPP Agent")
+    logger.info(f"XMPP JID: {xmpp_jid}")
+    logger.info(f"XMPP Password: {'*' * len(xmpp_password)}")
+    
+    try:
+        # Create and start the agent
+        agent = SensorsAgent(
+            motion_jid=xmpp_motion_jid,
+            period_sensors=10,
+            period_emergency=1,
+            jid=xmpp_jid, 
+            password=xmpp_password,
+            verify_security=False
+        )
+        if run_agent:
+            logger.info("SensorsAgent created, attempting to start...")
+            await agent.start(auto_register=True)
+            logger.info("SensorsAgent started successfully!")
+        else:
+            logger.info("SensorsAgent created, but will not run!")
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
     
@@ -120,16 +146,20 @@ async def start_test_camera() -> Agent:
 
 async def main():
     motion_agent = await start_motion_agent()
-    # await start_camera()
-    # await start_test_camera()
+    camera_agent = await start_camera_agent()
+    sensors_agent = await start_sensors_agent()
 
     logger.info("Agents started")
 
     # Keep the program alive
     while True:
-        await asyncio.sleep(1)
+        await asyncio.sleep(60)
         if motion_agent.is_alive():
-            logger.debug("MotionAgent is alive and running...")
+            logger.info("MotionAgent is alive and running...")
+        if camera_agent.is_alive():
+            logger.info("CameraAgent is alive and running...")
+        if sensors_agent.is_alive():
+            logger.info("SensorsAgent is alive and running...")
         
 if __name__ == "__main__":
     try:
