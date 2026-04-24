@@ -1,9 +1,8 @@
 import asyncio
-import os
 import logging
 
 from spade.agent import Agent, Template
-from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
+from spade.behaviour import CyclicBehaviour, OneShotBehaviour
 from spade.message import Message
 
 from agent.managers.motion_manager import MotionManager
@@ -47,7 +46,7 @@ class MotionAgent(Agent):
                 if msg.get_metadata("emergency"):
                     await self.process_command(msg)
                 else:
-                    await self.queue.put(msg)
+                    await self.agent.queue.put(msg)
             else:
                 logger.debug("[Behavior] No message received?!")
 
@@ -57,11 +56,13 @@ class MotionAgent(Agent):
             if command.startswith("obstacles"):
                 state = command.split(' ', 1)
                 if state == "detected":
-                    self.agent.emergency_brake = True
-                    self.agent.motion_manager.emergency_stop()
+                    self.agent.emergency_brake = self.agent.motion_manager.emergency_stop()
                 elif state == "clear":
+                    self.agent.emergency_brake = not self.agent.motion_manager.clear_emergency_stop()
+                elif state == "override":
+                    self.agent.motion_manager.clear_emergency_stop()
                     self.agent.emergency_brake = False
-
+                    return "obstacles overrided"
 
     class Worker(CyclicBehaviour):
         async def on_start(self):

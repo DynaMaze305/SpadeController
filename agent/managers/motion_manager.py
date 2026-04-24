@@ -91,10 +91,11 @@ class MotionManager:
             self._stop_unlocked()
             return True
 
-    def clear_emergency_stop(self):
+    def clear_emergency_stop(self) -> bool:
         """Re-enable motion after an emergency stop."""
         with self._lock:
             self._emergency_stop = False
+            return True
 
     # ---------------------------------------------------------
     # PWM control
