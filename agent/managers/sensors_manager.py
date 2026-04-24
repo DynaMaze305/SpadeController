@@ -1,14 +1,17 @@
 import time
+import threading
 
 # Import necessary libraries for GPIO control (Raspberry Pi)
 import RPi.GPIO as GPIO
 
 class SensorsManager:
     _instance = None
+    _instance_lock = threading.Lock()
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
+    def __new__(cls, *args, **kwargs):
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self, dr:int =16, dl:int =19, cs:int =5, clk:int =25, addr:int =24, data:int =23, vref:int =3.3, adc_bit:int =10):
@@ -53,11 +56,12 @@ class SensorsManager:
         self.VREF = vref
         self.BITS = adc_bit
 
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+
         GPIO.setup(self.DR,GPIO.IN,GPIO.PUD_UP)
         GPIO.setup(self.DL,GPIO.IN,GPIO.PUD_UP)
 
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
         GPIO.setup(self.CS, GPIO.OUT)
         GPIO.setup(self.CLK, GPIO.OUT)
         GPIO.setup(self.ADDR, GPIO.OUT)
@@ -65,6 +69,9 @@ class SensorsManager:
 
         GPIO.output(self.CS, GPIO.HIGH)
         GPIO.output(self.CLK, GPIO.LOW)
+
+        self._lock = threading.Lock()
+        self._initialized = True
 
     def get_ioa_right(self) -> int:
         """
@@ -190,36 +197,38 @@ class SensorsManager:
         ValueError
             If the channel is not within the valid range.
         """
-        if channel < 0 or channel > 10:
-            raise ValueError("Channel must be between 0 and 10")
-        value = [0,0]
-        # Read the same channel twice to get the result (first read starts conversion, second read gets result)
-        for j, ch in enumerate([channel, channel]):
-            GPIO.output(self.CS, GPIO.LOW)
-            for i in range(0,8):
-                #sent 8-bit Address
-                if i<4:
-                    if(((ch) >> (3 - i)) & 0x01):
-                        GPIO.output(self.ADDR,GPIO.HIGH)
+        with self._lock:
+            if channel < 0 or channel > 10:
+                raise ValueError("Channel must be between 0 and 10")
+            value = [0,0]
+            # Read the same channel twice to get the result (first read starts conversion, second read gets result)
+            for j in range(2):
+                ch = channel
+                GPIO.output(self.CS, GPIO.LOW)
+                for i in range(0,8):
+                    #sent 8-bit Address
+                    if i<4:
+                        if(((ch) >> (3 - i)) & 0x01):
+                            GPIO.output(self.ADDR,GPIO.HIGH)
+                        else:
+                            GPIO.output(self.ADDR,GPIO.LOW)
                     else:
-                        GPIO.output(self.ADDR,GPIO.LOW)
-                else:
-                    GPIO.output(self.ADDR,GPIO.LOW)		
-                #read MSB 4-bit data
-                value[j] <<= 1
-                if(GPIO.input(self.DATA)):
-                    value[j] |= 0x01
-                GPIO.output(self.CLK,GPIO.HIGH)
-                GPIO.output(self.CLK,GPIO.LOW)
-            for i in range(0,4):
-                #read LSB 8-bit data
-                value[j] <<= 1
-                if(GPIO.input(self.DATA)):
-                    value[j] |= 0x01
-                GPIO.output(self.CLK,GPIO.HIGH)
-                GPIO.output(self.CLK,GPIO.LOW)
-            time.sleep(0.0001)
-            GPIO.output(self.CS,GPIO.HIGH)
-        for i in range(0,2):
-            value[i] >>= 2
-        return value[1]  # Return the second read which contains the result of the conversion
+                        GPIO.output(self.ADDR,GPIO.LOW)		
+                    #read MSB 4-bit data
+                    value[j] <<= 1
+                    if(GPIO.input(self.DATA)):
+                        value[j] |= 0x01
+                    GPIO.output(self.CLK,GPIO.HIGH)
+                    GPIO.output(self.CLK,GPIO.LOW)
+                for i in range(0,4):
+                    #read LSB 8-bit data
+                    value[j] <<= 1
+                    if(GPIO.input(self.DATA)):
+                        value[j] |= 0x01
+                    GPIO.output(self.CLK,GPIO.HIGH)
+                    GPIO.output(self.CLK,GPIO.LOW)
+                time.sleep(0.0001)
+                GPIO.output(self.CS,GPIO.HIGH)
+            for i in range(0,2):
+                value[i] >>= 2
+            return value[1]  # Return the second read which contains the result of the conversion
