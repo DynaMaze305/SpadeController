@@ -157,7 +157,6 @@ class CameraAgent(Agent):
 
                         logger.info(f"[Behaviour] Set LED ({led_id}) to ({r}, {g}, {b})")
                         cmd.append([led_id,r, g,b])
-                        self.agent.camera_manager.set_led(led_id, Color(r, g, b))
 
                     except ValueError as e:
                         logger.error(f"[Behaviour] Invalid LED parameters for block {i}: {e}")
@@ -166,6 +165,9 @@ class CameraAgent(Agent):
                     except Exception as e:
                         logger.exception(f"[Behaviour] Unexpected error while setting LED {i}: {e}")
                         return f"error led{i} {command} {e}"
+
+                for led_id, r, g, b in cmd:
+                    self.agent.camera_manager.set_led(led_id, Color(r, g, b))
 
 
             else:
