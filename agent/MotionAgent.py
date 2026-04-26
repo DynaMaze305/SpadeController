@@ -7,6 +7,7 @@ from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 
 from agent.managers.motion_manager import MotionManager
+from agent.motion_models import duration_for_distance, duration_for_angle
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -29,24 +30,6 @@ LEFT_RIGHT_RATIO = 1.01      # right / left motor compensation
 # Smooth-stop ramp
 SMOOTH_STEPS = 5
 SMOOTH_TIME = 0.15           # seconds
-SMOOTH_TIME = 0.15
-
-
-# Camera calibration
-CALIBRATION_CM = 20.0
-CALIBRATION_PX = 68.00
-PX_PER_MM = CALIBRATION_PX / (CALIBRATION_CM * 10)
-
-# y_pixels = slope * x_seconds + intercept
-FORWARD_MODEL_SLOPE = 62.86
-FORWARD_MODEL_INTERCEPT = -5.97
-BACKWARD_MODEL_SLOPE = 70.65
-BACKWARD_MODEL_INTERCEPT = -6.22
-
-POSITIVE_MODEL_SLOPE = 116.2
-POSITIVE_MODEL_INTERCEPT = -6.8
-NEGATIVE_MODEL_SLOPE = 126.6
-NEGATIVE_MODEL_INTERCEPT = -13.2
 
 
 class MotionAgent(Agent):
