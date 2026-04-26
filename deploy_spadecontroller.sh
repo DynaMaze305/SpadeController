@@ -120,7 +120,7 @@ read -rp "Proceed with deployment? (y/n) " confirm
 [[ "$confirm" != "y" ]] && exit 0
 
 # Run rsync
-rsync ${RSYNC_OPTS} --exclude='.venv' --exclude='.claude' --exclude='__pycache__' -e "ssh -p ${SSH_PORT}" \
+rsync ${RSYNC_OPTS} --exclude='.venv' --exclude='.claude' --exclude='__pycache__' --exclude='.git' -e "ssh -p ${SSH_PORT}" \
     "${LOCAL_PATH}/" \
     "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
 
