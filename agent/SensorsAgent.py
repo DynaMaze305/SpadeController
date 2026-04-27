@@ -18,8 +18,25 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.propagate = True
 
 class SensorsAgent(Agent):
-    def __init__(self, motion_jid: str, period_sensors: int, period_emergency: int,
-                 jid: str, password: str, verify_security = False):
+    def __init__(self, motion_jid: str, period_sensors: int, period_emergency: int, jid: str, password: str, verify_security = False):
+        """
+        Create the SensorsAgent for an AlphaBot2-Pi.
+
+        Parameters
+        ----------
+        motion_jid: str
+            The identifier of the motion agent for emergency brake.
+        period_sensors: int
+            The interval for the measure of the sensors (not the emergency one).
+        period_emergency: int
+            The interval for the measure of the emergency sensors.
+        jid : str
+            The identifier of the agent in the form username@server
+        password : str
+            The password to connect to the server
+        verify_security : bool
+            Whether to verify or not the SSL certificates
+        """
         super().__init__(jid, password, verify_security)
         self.motion_jid = motion_jid
         self.period_sensors = period_sensors
@@ -66,8 +83,8 @@ class SensorsAgent(Agent):
             """
             Process the received command and execute corresponding actions on the AlphaBot2.
 
-            Parameters
-            ----------
+            Parameter
+            ---------
             command: str
                 The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
             """
