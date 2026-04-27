@@ -56,6 +56,14 @@ class MotionAgent(Agent):
                 logger.debug("[Behavior] No message received?!")
 
         async def process_command(self, msg: Message):
+            """
+            To process emergency commands.
+
+            Parameter
+            ---------
+            msg: Message
+                The emergency message.
+            """
             command = msg.body.split()
 
             if command.startswith("obstacles"):
@@ -74,6 +82,9 @@ class MotionAgent(Agent):
             logger.info("[Behaviour] Ready to work.")
 
         async def run(self):
+            """
+            Execution of the waiting instructions.
+            """
             msg = await self.agent.queue.get()
 
             keyboard_signal = msg.get_metadata("source") == "keyboard"
@@ -181,6 +192,8 @@ class MotionAgent(Agent):
             ----------
             command: str
                 The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
+            override_stop: bool
+                Override the emergency break
             """
             command = command.strip()
 
@@ -218,15 +231,7 @@ class MotionAgent(Agent):
                     left_speed = int(left)
                     right_speed = int(right)
                     logger.info(f"[Behaviour] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
-                    # map signed values to directional methods (new MotionManager API)
-                    if left_speed >= 0 and right_speed >= 0:
-                        self.agent.motion_manager.forward(left_speed, right_speed, emergency_override=override_stop)
-                    elif left_speed <= 0 and right_speed <= 0:
-                        self.agent.motion_manager.backward(abs(left_speed), abs(right_speed), emergency_override=override_stop)
-                    elif left_speed < 0 < right_speed:
-                        self.agent.motion_manager.left(abs(left_speed), right_speed, emergency_override=override_stop)
-                    else:
-                        self.agent.motion_manager.right(left_speed, abs(right_speed), emergency_override=override_stop)
+                    self.agent.motion_manager.set_motors(left_speed, right_speed, override_stop)
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
 
@@ -305,6 +310,9 @@ class MotionAgent(Agent):
                 logger.warning(f"[Behaviour] Unknown command: {command}")
 
     async def setup(self):
+        """
+        Setup the agent and add its behaviors.
+        """
         logger.info("[Agent] MotionAgent starting setup...")
         logger.info(f"[Agent] Will connect as {self.jid}")
 
