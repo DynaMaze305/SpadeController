@@ -45,6 +45,9 @@ class CameraAgent(Agent):
             logger.info("[Behaviour] Ready to work.")
 
         async def run(self):
+            """
+            Execution of the waiting instructions.
+            """
             msg = await self.agent.queue.get()
 
             try:
@@ -60,7 +63,15 @@ class CameraAgent(Agent):
             await self.send(reply)
             logger.info(f"[Behaviour] Sent reply to {msg.sender}")
 
-        async def process_command(self, command):
+        async def process_command(self, command:str):
+            """
+            Process the received command and execute corresponding actions.
+
+            Parameter
+            ----------
+            command: str
+                The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
+            """
             command = command.strip().lower()
             # -----------------------------
             # Streaming commands (Currently in development)
@@ -175,6 +186,9 @@ class CameraAgent(Agent):
             return None
 
     async def setup(self):
+        """
+        Setup the agent and add its behaviors.
+        """
         logger.info("[Agent] CameraAgent starting setup...")
         logger.info(f"[Agent] Will connect as {self.jid}")
 

@@ -217,8 +217,8 @@ class SensorsManager:
         int
             The raw ADC value read from the TLC chips (0–1023).
 
-        Raises
-        ------
+        Raise
+        -----
         ValueError
             If the channel is not within the valid range.
         """
@@ -256,4 +256,4 @@ class SensorsManager:
                 GPIO.output(self.CS,GPIO.HIGH)
             for i in range(0,2):
                 value[i] >>= 2
-            return value[1]  # Return the second read which contains the result of the conversion
+            return value[1]  # Returns the second read which contains the result of the conversion
