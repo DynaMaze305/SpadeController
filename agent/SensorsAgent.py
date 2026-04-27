@@ -6,6 +6,7 @@ from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 
 from agent.managers.sensors_manager import SensorsManager
+from agent.managers.motion_manager import MotionManager
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,8 +19,25 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.propagate = True
 
 class SensorsAgent(Agent):
-    def __init__(self, motion_jid: str, period_sensors: int, period_emergency: int,
-                 jid: str, password: str, verify_security = False):
+    def __init__(self, motion_jid: str, period_sensors: float, period_emergency: float, jid: str, password: str, verify_security = False):
+        """
+        Create the SensorsAgent for an AlphaBot2-Pi.
+
+        Parameters
+        ----------
+        motion_jid: str
+            The identifier of the motion agent for emergency brake.
+        period_sensors: float
+            The interval in second for the measure of the sensors (not the emergency one).
+        period_emergency: float
+            The interval in second for the measure of the emergency sensors.
+        jid : str
+            The identifier of the agent in the form username@server
+        password : str
+            The password to connect to the server
+        verify_security : bool
+            Whether to verify or not the SSL certificates
+        """
         super().__init__(jid, password, verify_security)
         self.motion_jid = motion_jid
         self.period_sensors = period_sensors
@@ -66,8 +84,8 @@ class SensorsAgent(Agent):
             """
             Process the received command and execute corresponding actions on the AlphaBot2.
 
-            Parameters
-            ----------
+            Parameter
+            ---------
             command: str
                 The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
             """
@@ -158,12 +176,16 @@ class SensorsAgent(Agent):
             logger.info(f"[Behaviour] ReadSensors running every {self.period}s.")
 
         async def run(self):
+            # Read the sensors inputs
             for sensor_type in self.agent.data.keys():
                 for sensor_id in self.agent.data[sensor_type]:
                     if sensor_type == "digital":
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_digital_sensor_value(sensor_id)
                     elif sensor_type == "analog":
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_analog_sensor_value(sensor_id)
+
+            # Add the motion status
+            self.agent.data["motion"] = self.agent.motion_manager.read_motion_status()
 
             logger.debug(f"[Behaviour] Updated sensor data: {self.agent.data}")
             self.agent.add_behaviour(self.agent.BroadcastData())
@@ -184,6 +206,7 @@ class SensorsAgent(Agent):
                     self.emergency_right = True
                     await self.send_emergency("right")
             elif self.emergency_right:
+                self.emergency_right = False
                 await self.send_emergency_clear("right")
             
             if left == 0:
@@ -191,6 +214,7 @@ class SensorsAgent(Agent):
                     self.emergency_left = True
                     await self.send_emergency("left")
             elif self.emergency_left:
+                self.emergency_left = False
                 await self.send_emergency_clear("left")
 
         async def send_emergency(self, side: str):
@@ -234,6 +258,7 @@ class SensorsAgent(Agent):
         logger.info(f"[Agent] Connecting as {self.jid}")
 
         self.sensors_manager = SensorsManager()
+        self.motion_manager = MotionManager()
         self.register_list = []
         self.data = {
             "digital": {

@@ -1,5 +1,4 @@
 #!/bin/bash
-# Implemented with assistance from AI (Copilot)
 # Deployment script for SpadeController
 LOGFILE=deploy.log
 echo "$(date) - Deployment started" >> $LOGFILE
@@ -15,7 +14,6 @@ if [ -f $ENV_FILE ]; then
     source $ENV_FILE
 else
     echo "$ENV_FILE file not found" >> $LOGFILE
-    echo "$ENV_FILE file not found"
     exit 1
 fi
 
@@ -24,24 +22,23 @@ REQUIRED_VARS=(REMOTE_USER REMOTE_PATH XMPP_PASSWORD)
 for var in "${REQUIRED_VARS[@]}"; do
     if [ -z "${!var}" ]; then
         echo "Error: $var is not set in $ENV_FILE" >> $LOGFILE
-        echo "Error: $var is not set in $ENV_FILE"
         exit 1
     fi
 done
 
-# Select bot to deploy on
-read -rp "Select bot to deploy on (1-4): " bot_choice
-if [[ ! $bot_choice =~ ^[1-4]$ ]]; then
+# Select bot to deploy on (limitation implied by the labo)
+read -rp "Select bot to deploy on (1 or 3): " bot_choice
+if [[ ! $bot_choice =~ ^[13]$ ]]; then
     echo "Invalid bot id, choice ${bot_choice}. Exiting." >> $LOGFILE
     echo "Invalid bot id, choice ${bot_choice}. Exiting."
     exit 1
 fi
 
-# Select coordinator to deploy on
-read -rp "Select coordinator to deploy on (1-2): " coordinator
+# Select XMPP coordinator (server) the bot's agents will connect to
+read -rp "Select XMPP coordinator the bot will connect to (1-2): " coordinator
 if [[ ! $coordinator =~ ^[1-2]$ ]]; then
-    echo "Invalid coordinator choice ${coordinator}. Exiting." >> $LOGFILE
-    echo "Invalid coordinator choice ${coordinator}. Exiting."
+    echo "Invalid XMPP coordinator choice ${coordinator}. Exiting." >> $LOGFILE
+    echo "Invalid XMPP coordinator choice ${coordinator}. Exiting."
     exit 1
 fi
 
@@ -55,8 +52,8 @@ XMPP_DOMAIN="${!XMPP_DOMAIN_VAR}"
 
 # Validate specific values
 if [ -z "$REMOTE_HOST" ] || [ -z "$XMPP_USERNAME" ] || [ -z "$XMPP_DOMAIN" ]; then
-    echo "Missing specific configuration for bot ${bot_choice} or coordinator ${coordinator}" >> $LOGFILE
-    echo "Missing specific configuration for bot ${bot_choice} or coordinator ${coordinator}"
+    echo "Missing .env configuration for bot ${bot_choice} or XMPP coordinator ${coordinator}" >> $LOGFILE
+    echo "Missing .env configuration for bot ${bot_choice} or XMPP coordinator ${coordinator}"
     exit 1
 fi
 
@@ -86,7 +83,7 @@ tmpfile=$(mktemp)
     echo "# If you need to change values, edit .env.template or .env"
     echo "# ---------------------------------------------------------"
     echo
-    echo "# Generated for bot $bot_choice on coordinator $coordinator"
+    echo "# Generated for bot $bot_choice connecting to XMPP coordinator $coordinator"
     echo
     cat "$OUTPUT"
 } > "$tmpfile"
@@ -103,13 +100,13 @@ sed -i "s|{{MOTION_AGENT}}|$MOTION_AGENT|g" "$OUTPUT"
 sed -i "s|{{CAMERA_AGENT}}|$CAMERA_AGENT|g" "$OUTPUT"
 sed -i "s|{{SENSORS_AGENT}}|$SENSORS_AGENT|g" "$OUTPUT"
 
-echo "Generated .env for bot $bot_choice on coordinator $coordinator" >> $LOGFILE
-echo "Generated .env for bot $bot_choice on coordinator $coordinator"
+echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)" >> $LOGFILE
+echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)"
 # ---------------------------------------------------------
 
 # Default values
 SSH_PORT=${SSH_PORT:-22}
-RSYNC_OPTS=${RSYNC_OPTS:--avz --delete --exclude='.env' --exclude='.env.template'}
+RSYNC_OPTS=${RSYNC_OPTS:--avz --delete}
 
 echo "Deploying folder to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}" >> $LOGFILE
 echo "Using rsync options: ${RSYNC_OPTS}" >> $LOGFILE

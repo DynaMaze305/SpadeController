@@ -5,10 +5,11 @@ import logging
 from spade.agent import Agent
 
 from agent.CameraAgent import CameraAgent
-from agent.TestCameraReceiver import TestCameraReceiver
-
 from agent.MotionAgent import MotionAgent
 from agent.SensorsAgent import SensorsAgent
+
+from agent.TestCameraReceiver import TestCameraReceiver
+from agent.TestAgent import TestAgent
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -46,6 +47,7 @@ async def start_motion_agent(run_agent: bool) -> Agent:
         return agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
+        raise e
 
 async def start_camera_agent(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
@@ -73,6 +75,7 @@ async def start_camera_agent(run_agent: bool) -> Agent:
         return agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
+        raise e
 
 async def start_sensors_agent(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
@@ -80,19 +83,19 @@ async def start_sensors_agent(run_agent: bool) -> Agent:
     xmpp_password = os.environ.get("XMPP_PASSWORD", "top_secret")
 
     xmpp_motion_jid = os.environ.get("MOTION_AGENT","prosody")
-    
+
     # Log the configuration for debugging purposes (masking the password)
     logger.info("Starting Sensors XMPP Agent")
     logger.info(f"XMPP JID: {xmpp_jid}")
     logger.info(f"XMPP Password: {'*' * len(xmpp_password)}")
-    
+
     try:
         # Create and start the agent
         agent = SensorsAgent(
             motion_jid=xmpp_motion_jid,
             period_sensors=10,
             period_emergency=1,
-            jid=xmpp_jid, 
+            jid=xmpp_jid,
             password=xmpp_password,
             verify_security=False
         )
@@ -105,9 +108,10 @@ async def start_sensors_agent(run_agent: bool) -> Agent:
         return agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
-    
+        raise e
 
-async def start_test_camera() -> Agent:
+
+async def start_test_camera(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
     xmpp_domain = os.environ.get("XMPP_DOMAIN", "prosody")
     xmpp_username = os.environ.get("XMPP_CAMERA_USERNAME", "camera-bot-agent")
@@ -132,13 +136,16 @@ async def start_test_camera() -> Agent:
             verify_security=False
         )
         
-        logger.info("TestCameraReceiver created, attempting to start...")
-        await test_agent.start(auto_register=True)
-        logger.info("TestCameraReceiver started successfully!")
+        if run_agent:
+            logger.info("TestCameraReceiver created, attempting to start...")
+            await test_agent.start(auto_register=True)
+            logger.info("TestCameraReceiver started successfully!")
+        else:
+            logger.info("SensorsAgent created, but will not run!")
 
-        return test_agent
     except Exception as e:
         logger.error(f"Error starting agent: {str(e)}", exc_info=True)
+        raise e
 
 async def main():
     motion_agent = await start_motion_agent(True)

@@ -38,8 +38,6 @@ class AnalogSensors:
         -------
         read_channel(channel)
             Reads a raw 10-bit ADC value (0–1023) from the specified channel.
-        read_voltage(channel)
-            Returns the measured voltage at the ADC pin based on Vref.
         get_battery_voltage(channel=6, divider_ratio=11.0)
             Returns the robot's battery voltage using the onboard voltage divider.
 
@@ -49,12 +47,14 @@ class AnalogSensors:
         - The AlphaBot2-P connects its battery through a ~1:11 voltage divider
         to ADC channel 6, allowing safe measurement of Li-ion battery packs.
         - All GPIO operations use BCM numbering.
+        - This code assumes that the battery is a 2S Li-ion pack (7.4V nominal, 8.4V fully charged, 6.72V empty)
+        - The connexion is based (channel 10, voltage divider) on https://www.waveshare.com/w/upload/7/72/AlphaBot2-Pi-Schematic.pdf
     """
     def __init__(self, cs=5, clk=25, addr=24, data=23, vref=3.3):
         """
         Initialize the GPIO pins for communicating with the ADC.
 
-        Parameters:
+        Parameters
         -----------
         cs : int, optional
             GPIO pin connected to CS (chip select). Default is 5.
@@ -202,8 +202,8 @@ class AnalogSensors:
         #     int
         #         The raw ADC value.
 
-        #     Raises
-        #     ------
+        #     Raise
+        #     -----
         #     ValueError
         #         If the channel is not within the valid range.
         #     """

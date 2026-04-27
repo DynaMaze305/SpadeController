@@ -226,8 +226,8 @@ class AlphaBot2(object):
     #     """
     #     Capture a photo using the camera.
         
-    #     Returns:
-    #     --------
+    #     Returns
+    #     -------
     #     str
     #         A base64-encoded string of the captured JPEG image.
         

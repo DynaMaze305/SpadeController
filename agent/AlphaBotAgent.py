@@ -14,8 +14,8 @@ def Wheel(pos: int) -> Color:
     """
     Generate rainbow colors across 0-255 positions.
 
-    Parameters
-    ----------
+    Parameter
+    ---------
     pos : int
         The position in the rainbow (0-255).
 
@@ -86,7 +86,7 @@ class AlphaBotAgent(Agent):
             Listen for incoming XMPP messages and process commands.
             """
             logger.debug("[Behaviour] Waiting for messages...")
-            msg = await self.receive(timeout=10)
+            msg = await self.receive(timeout=9999)
             if msg:
                 logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
                 keyboard_signal = msg.get_metadata("source") == "keyboard"
@@ -109,6 +109,8 @@ class AlphaBotAgent(Agent):
             ----------
             command: str
                 The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
+            override_stop: bool
+                Boolean to override the emergency stop
             """
             command = command.strip().lower()
 
@@ -168,8 +170,8 @@ class AlphaBotAgent(Agent):
             """
             Initialize the behavior with the target recipient for the path request.
 
-            Parameters
-            ----------
+            Parameter
+            ---------
             target: str
                 The JID of the navigation agent to which the path request will be sent.
             """
