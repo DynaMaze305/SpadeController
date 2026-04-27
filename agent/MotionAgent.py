@@ -64,15 +64,16 @@ class MotionAgent(Agent):
             msg: Message
                 The emergency message.
             """
-            command = msg.body.split()
+            command = msg.body
 
             if command.startswith("obstacles"):
                 state = command.split(' ', 1)
-                if state == "detected":
+                logger.info(f"{state}")
+                if state[1] == "detected":
                     self.agent.emergency_brake = self.agent.motion_manager.emergency_stop()
-                elif state == "clear":
+                elif state[1] == "clear":
                     self.agent.emergency_brake = not self.agent.motion_manager.clear_emergency_stop()
-                elif state == "override":
+                elif state[1] == "override":
                     self.agent.motion_manager.clear_emergency_stop()
                     self.agent.emergency_brake = False
                     return "obstacles overrided"

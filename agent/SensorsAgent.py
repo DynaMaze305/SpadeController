@@ -19,7 +19,7 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log.propagate = True
 
 class SensorsAgent(Agent):
-    def __init__(self, motion_jid: str, period_sensors: int, period_emergency: int, jid: str, password: str, verify_security = False):
+    def __init__(self, motion_jid: str, period_sensors: float, period_emergency: float, jid: str, password: str, verify_security = False):
         """
         Create the SensorsAgent for an AlphaBot2-Pi.
 
@@ -27,10 +27,10 @@ class SensorsAgent(Agent):
         ----------
         motion_jid: str
             The identifier of the motion agent for emergency brake.
-        period_sensors: int
-            The interval for the measure of the sensors (not the emergency one).
-        period_emergency: int
-            The interval for the measure of the emergency sensors.
+        period_sensors: float
+            The interval in second for the measure of the sensors (not the emergency one).
+        period_emergency: float
+            The interval in second for the measure of the emergency sensors.
         jid : str
             The identifier of the agent in the form username@server
         password : str
@@ -185,7 +185,7 @@ class SensorsAgent(Agent):
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_analog_sensor_value(sensor_id)
 
             # Add the motion status
-            self.agent.data["motion"] = self.agent.motion_managet.read_motion_status()
+            self.agent.data["motion"] = self.agent.motion_manager.read_motion_status()
 
             logger.debug(f"[Behaviour] Updated sensor data: {self.agent.data}")
             self.agent.add_behaviour(self.agent.BroadcastData())
