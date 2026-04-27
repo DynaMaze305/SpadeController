@@ -72,17 +72,45 @@ class MotionManager:
     # Internal helpers
     # ---------------------------------------------------------
     def _check_emergency(self, emergency_override: bool = False):
+        """
+        Check the emergency state and raise an error if emergency.
+
+        Parameters
+        ----------
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         if self._emergency_stop and not emergency_override:
             raise RuntimeError("MotionManager emergency stop active")
 
     def _safe_pwm(self, value: int) -> int:
+        """
+        Clamp the PWM value in the allowed range.
+
+        Parameter
+        ---------
+        value: int
+            The PWM value to clamp.
+
+        Returns
+        -------
+        int:
+            The clamped PWM value
+        """
         return max(0, min(value, 100))
 
     # ---------------------------------------------------------
     # Emergency stop
     # ---------------------------------------------------------
     def emergency_stop(self) -> bool:
-        """Immediately stop all motion and lock out future movement."""
+        """
+        Immediately stop all motion and lock out future movement.
+
+        Returns
+        -------
+        bool:
+            To know if an emergency stop was applied or not.
+        """
         with self._lock:
             if self._emergency_stop:
                 return False
@@ -92,8 +120,17 @@ class MotionManager:
             return True
 
     def clear_emergency_stop(self) -> bool:
-        """Re-enable motion after an emergency stop."""
+        """
+        Re-enable motion after an emergency stop.
+
+        Returns
+        -------
+        bool:
+            To know if an emergency stop was cleared or not.
+        """
         with self._lock:
+            if not self._emergency_stop:
+                return False
             self._emergency_stop = False
             return True
 
@@ -101,7 +138,16 @@ class MotionManager:
     # PWM control
     # ---------------------------------------------------------
     def setPWMA(self, value: int, emergency_override: bool = False):
-        """Set the duty cycle for motor A (left)."""
+        """
+        Set the duty cycle for motor A (left).
+
+        Parameters
+        ----------
+        value: int
+            The PWM value to set for the motor A
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         with self._lock:
             self._check_emergency(emergency_override)
             value = self._safe_pwm(value)
@@ -109,7 +155,16 @@ class MotionManager:
             self.PWMA.ChangeDutyCycle(value)
 
     def setPWMB(self, value: int, emergency_override: bool = False):
-        """Set the duty cycle for motor B (right)."""
+        """
+        Set the duty cycle for motor B (right).
+
+        Parameters
+        ----------
+        value: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         with self._lock:
             self._check_emergency(emergency_override)
             value = self._safe_pwm(value)
@@ -117,7 +172,18 @@ class MotionManager:
             self.PWMB.ChangeDutyCycle(value)
 
     def setPWM(self, pa: int, pb: int, emergency_override: bool = False):
-        """Set the duty cycle for the motors."""
+        """
+        Set the duty cycle for the motors.
+
+        Parameters
+        ----------
+        pa: int
+            The PWM value to set for the motor A
+        pb: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         with self._lock:
             self._check_emergency(emergency_override)
             pa = self._safe_pwm(pa)
@@ -130,6 +196,15 @@ class MotionManager:
     def _setPWM_internal_only(self, pa: int, pb: int, emergency_override: bool = False):
         """
         Set the duty cycle for the motors.
+
+        Parameters
+        ----------
+        pa: int
+            The PWM value to set for the motor A
+        pb: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
 
         Note:
         - Only internal to MotionManager, otherwise break thread safety.
@@ -146,7 +221,18 @@ class MotionManager:
     # Motion commands
     # ---------------------------------------------------------
     def forward(self, pa: int = 100, pb: int = 100, emergency_override: bool = False):
-        """Move the robot forward."""
+        """
+        Move the robot forward.
+
+        Parameters
+        ----------
+        pa: int
+            The PWM value to set for the motor A
+        pb: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         with self._lock:
             self._check_emergency(emergency_override)
             self._setPWM_internal_only(pa, pb)
@@ -162,7 +248,18 @@ class MotionManager:
             self._stop_unlocked()
 
     def backward(self, pa: int = 100, pb: int = 100, emergency_override: bool = False):
-        """Move the robot backward."""
+        """
+        Move the robot backward.
+
+        Parameters
+        ----------
+        pa: int
+            The PWM value to set for the motor A
+        pb: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         with self._lock:
             self._check_emergency(emergency_override)
             self._setPWM_internal_only(pa, pb)
@@ -172,7 +269,18 @@ class MotionManager:
             GPIO.output(self.BIN2, GPIO.LOW)
 
     def left(self, pa: int = 50, pb: int = 50, emergency_override: bool = False):
-        """Turn the robot itself on the left."""
+        """
+        Turn the robot itself on the left.
+
+        Parameters
+        ----------
+        pa: int
+            The PWM value to set for the motor A
+        pb: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         with self._lock:
             self._check_emergency(emergency_override)
             self._setPWM_internal_only(pa, pb)
@@ -182,7 +290,18 @@ class MotionManager:
             GPIO.output(self.BIN2, GPIO.HIGH)
 
     def right(self, pa: int = 50, pb: int = 50, emergency_override: bool = False):
-        """Turn the robot itself on the right."""
+        """
+        Turn the robot itself on the right.
+
+        Parameters
+        ----------
+        pa: int
+            The PWM value to set for the motor A
+        pb: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
         with self._lock:
             self._check_emergency(emergency_override)
             self._setPWM_internal_only(pa, pb)
@@ -207,11 +326,11 @@ class MotionManager:
     # ---------------------------------------------------------
     def read_motion_status(self) -> dict:
         """
-        Return a dictionary describing the robot's current motion state.
+        Returns a dictionary describing the robot's current motion state.
         Includes direction and PWM values for both motors.
 
-        Return
-        ------
+        Returns
+        -------
         dict
             A dictionary encoding the motion data
             {
