@@ -1,15 +1,15 @@
 #!/bin/bash
-# Implemented with assistance from AI (Copilot)
 # Deployment script for SpadeController
 LOGFILE=deploy.log
 echo "$(date) - Deployment started" >> $LOGFILE
+echo "$(date) - Deployment started"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_PATH="${SCRIPT_DIR}"
 
 # Load .env file (local config for deployment)
-ENV_FILE="${LOCAL_PATH}/.env"
+ENV_FILE="${LOCAL_PATH}/.env.template"
 if [ -f $ENV_FILE ]; then
     source $ENV_FILE
 else
@@ -18,7 +18,7 @@ else
 fi
 
 # Validate required variables
-REQUIRED_VARS=(REMOTE_USER REMOTE_PATH)
+REQUIRED_VARS=(REMOTE_USER REMOTE_PATH XMPP_PASSWORD)
 for var in "${REQUIRED_VARS[@]}"; do
     if [ -z "${!var}" ]; then
         echo "Error: $var is not set in $ENV_FILE" >> $LOGFILE
@@ -26,7 +26,7 @@ for var in "${REQUIRED_VARS[@]}"; do
     fi
 done
 
-# Select bot to deploy on
+# Select bot to deploy on (limitation implied by the labo)
 read -rp "Select bot to deploy on (1 or 3): " bot_choice
 if [[ ! $bot_choice =~ ^[13]$ ]]; then
     echo "Invalid bot id, choice ${bot_choice}. Exiting." >> $LOGFILE
@@ -106,7 +106,7 @@ echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)"
 
 # Default values
 SSH_PORT=${SSH_PORT:-22}
-RSYNC_OPTS=${RSYNC_OPTS:--avz --delete --exclude='.env' --exclude='.env.template'}
+RSYNC_OPTS=${RSYNC_OPTS:--avz --delete}
 
 echo "Deploying folder to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}" >> $LOGFILE
 echo "Using rsync options: ${RSYNC_OPTS}" >> $LOGFILE
@@ -120,7 +120,7 @@ read -rp "Proceed with deployment? (y/n) " confirm
 [[ "$confirm" != "y" ]] && exit 0
 
 # Run rsync
-rsync ${RSYNC_OPTS} --exclude='.venv' --exclude='.claude' --exclude='__pycache__' --exclude='.git' -e "ssh -p ${SSH_PORT}" \
+rsync ${RSYNC_OPTS} -e "ssh -p ${SSH_PORT}" \
     "${LOCAL_PATH}/" \
     "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
 
