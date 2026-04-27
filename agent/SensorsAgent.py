@@ -201,6 +201,7 @@ class SensorsAgent(Agent):
                     self.emergency_right = True
                     await self.send_emergency("right")
             elif self.emergency_right:
+                self.emergency_right = False
                 await self.send_emergency_clear("right")
             
             if left == 0:
@@ -208,6 +209,7 @@ class SensorsAgent(Agent):
                     self.emergency_left = True
                     await self.send_emergency("left")
             elif self.emergency_left:
+                self.emergency_left = False
                 await self.send_emergency_clear("left")
 
         async def send_emergency(self, side: str):
