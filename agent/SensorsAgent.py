@@ -6,6 +6,7 @@ from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 
 from agent.managers.sensors_manager import SensorsManager
+from agent.managers.motion_manager import MotionManager
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -175,12 +176,16 @@ class SensorsAgent(Agent):
             logger.info(f"[Behaviour] ReadSensors running every {self.period}s.")
 
         async def run(self):
+            # Read the sensors inputs
             for sensor_type in self.agent.data.keys():
                 for sensor_id in self.agent.data[sensor_type]:
                     if sensor_type == "digital":
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_digital_sensor_value(sensor_id)
                     elif sensor_type == "analog":
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_analog_sensor_value(sensor_id)
+
+            # Add the motion status
+            self.agent.data["motion"] = self.agent.motion_managet.read_motion_status()
 
             logger.debug(f"[Behaviour] Updated sensor data: {self.agent.data}")
             self.agent.add_behaviour(self.agent.BroadcastData())
@@ -253,6 +258,7 @@ class SensorsAgent(Agent):
         logger.info(f"[Agent] Connecting as {self.jid}")
 
         self.sensors_manager = SensorsManager()
+        self.motion_manager = MotionManager()
         self.register_list = []
         self.data = {
             "digital": {
