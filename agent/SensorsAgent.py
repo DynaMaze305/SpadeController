@@ -178,11 +178,16 @@ class SensorsAgent(Agent):
         async def run(self):
             # Read the sensors inputs
             for sensor_type in self.agent.data.keys():
+                if sensor_type not in ["digital" or "analog"]:
+                    continue
                 for sensor_id in self.agent.data[sensor_type]:
                     if sensor_type == "digital":
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_digital_sensor_value(sensor_id)
                     elif sensor_type == "analog":
                         self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_analog_sensor_value(sensor_id)
+
+            # Add the battery level
+            self.agent.data["battery"] = self.agent.sensors_manager.get_battery_level()
 
             # Add the motion status
             self.agent.data["motion"] = self.agent.motion_manager.read_motion_status()
