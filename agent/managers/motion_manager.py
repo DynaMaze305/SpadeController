@@ -310,6 +310,38 @@ class MotionManager:
             GPIO.output(self.BIN1, GPIO.HIGH)
             GPIO.output(self.BIN2, GPIO.LOW)
 
+    def set_motors(self, pa:int, pb:int, emergency_override: bool = False):
+        """
+        Set the speed and direction of both motors.
+
+        Parameters
+        ----------
+        pa: int
+            The PWM value to set for the motor A
+        pb: int
+            The PWM value to set for the motor B
+        emergency_override: bool
+            In case of the emergency is overrided -> Manual driving
+        """
+        with self._lock:
+            self._check_emergency(emergency_override)
+            if((pb >= 0) and (pb <= 100)):
+                GPIO.output(self.AIN1,GPIO.HIGH)
+                GPIO.output(self.AIN2,GPIO.LOW)
+            elif((pb < 0) and (pb >= -100)):
+                GPIO.output(self.AIN1,GPIO.LOW)
+                GPIO.output(self.AIN2,GPIO.HIGH)
+                pb = 0 - pb
+            if((pa >= 0) and (pa <= 100)):
+                GPIO.output(self.BIN1,GPIO.HIGH)
+                GPIO.output(self.BIN2,GPIO.LOW)
+            elif((pa < 0) and (pa >= -100)):
+                GPIO.output(self.BIN1,GPIO.LOW)
+                GPIO.output(self.BIN2,GPIO.HIGH)
+                pa = 0 - pa
+            
+            self._setPWM_internal_only(pa, pb)
+
     def _stop_unlocked(self):
         """Stop motors without checking emergency state (internal use)."""
         self.PWMA.ChangeDutyCycle(0)
