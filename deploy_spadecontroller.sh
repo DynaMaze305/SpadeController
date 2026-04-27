@@ -34,11 +34,11 @@ if [[ ! $bot_choice =~ ^[13]$ ]]; then
     exit 1
 fi
 
-# Select coordinator to deploy on
-read -rp "Select coordinator to deploy on (1-2): " coordinator
+# Select XMPP coordinator (server) the bot's agents will connect to
+read -rp "Select XMPP coordinator the bot will connect to (1-2): " coordinator
 if [[ ! $coordinator =~ ^[1-2]$ ]]; then
-    echo "Invalid coordinator choice ${coordinator}. Exiting." >> $LOGFILE
-    echo "Invalid coordinator choice ${coordinator}. Exiting."
+    echo "Invalid XMPP coordinator choice ${coordinator}. Exiting." >> $LOGFILE
+    echo "Invalid XMPP coordinator choice ${coordinator}. Exiting."
     exit 1
 fi
 
@@ -52,8 +52,8 @@ XMPP_DOMAIN="${!XMPP_DOMAIN_VAR}"
 
 # Validate specific values
 if [ -z "$REMOTE_HOST" ] || [ -z "$XMPP_USERNAME" ] || [ -z "$XMPP_DOMAIN" ]; then
-    echo "Missing specific configuration for bot ${bot_choice} or coordinator ${coordinator}" >> $LOGFILE
-    echo "Missing specific configuration for bot ${bot_choice} or coordinator ${coordinator}"
+    echo "Missing .env configuration for bot ${bot_choice} or XMPP coordinator ${coordinator}" >> $LOGFILE
+    echo "Missing .env configuration for bot ${bot_choice} or XMPP coordinator ${coordinator}"
     exit 1
 fi
 
@@ -83,7 +83,7 @@ tmpfile=$(mktemp)
     echo "# If you need to change values, edit .env.template or .env"
     echo "# ---------------------------------------------------------"
     echo
-    echo "# Generated for bot $bot_choice on coordinator $coordinator"
+    echo "# Generated for bot $bot_choice connecting to XMPP coordinator $coordinator"
     echo
     cat "$OUTPUT"
 } > "$tmpfile"
@@ -100,8 +100,8 @@ sed -i "s|{{MOTION_AGENT}}|$MOTION_AGENT|g" "$OUTPUT"
 sed -i "s|{{CAMERA_AGENT}}|$CAMERA_AGENT|g" "$OUTPUT"
 sed -i "s|{{SENSORS_AGENT}}|$SENSORS_AGENT|g" "$OUTPUT"
 
-echo "Generated .env for bot $bot_choice on coordinator $coordinator" >> $LOGFILE
-echo "Generated .env for bot $bot_choice on coordinator $coordinator"
+echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)" >> $LOGFILE
+echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)"
 # ---------------------------------------------------------
 
 # Default values
