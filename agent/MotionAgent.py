@@ -125,9 +125,9 @@ class MotionAgent(Agent):
 
             # invert the motors for negative values
             if is_positive:
-                self.agent.motion_manager.setMotor(-pwm_left, pwm_right)
+                self.agent.motion_manager.left(int(pwm_left), int(pwm_right))
             else:
-                self.agent.motion_manager.setMotor(pwm_left, -pwm_right)
+                self.agent.motion_manager.right(int(pwm_left), int(pwm_right))
 
             # defining a smoothing value , not longer than half the duration
             smooth_time = min(SMOOTH_TIME, duration / 2)
@@ -162,9 +162,9 @@ class MotionAgent(Agent):
 
             # invert the motors for negative values
             if is_backward:
-                self.agent.motion_manager.setMotor(pwm_left, pwm_right)
+                self.agent.motion_manager.backward(int(pwm_left), int(pwm_right))
             else:
-                self.agent.motion_manager.setMotor(-pwm_left, -pwm_right)
+                self.agent.motion_manager.forward(int(pwm_left), int(pwm_right))
 
             # defining a smoothing value , not longer than half the duration
             smooth_time = min(SMOOTH_TIME, duration / 2)
@@ -218,7 +218,15 @@ class MotionAgent(Agent):
                     left_speed = int(left)
                     right_speed = int(right)
                     logger.info(f"[Behaviour] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
-                    self.agent.motion_manager.setMotor(left_speed, right_speed, emergency_override = override_stop)
+                    # map signed values to directional methods (new MotionManager API)
+                    if left_speed >= 0 and right_speed >= 0:
+                        self.agent.motion_manager.forward(left_speed, right_speed, emergency_override=override_stop)
+                    elif left_speed <= 0 and right_speed <= 0:
+                        self.agent.motion_manager.backward(abs(left_speed), abs(right_speed), emergency_override=override_stop)
+                    elif left_speed < 0 < right_speed:
+                        self.agent.motion_manager.left(abs(left_speed), right_speed, emergency_override=override_stop)
+                    else:
+                        self.agent.motion_manager.right(left_speed, abs(right_speed), emergency_override=override_stop)
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
 

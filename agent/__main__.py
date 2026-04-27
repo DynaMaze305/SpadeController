@@ -8,6 +8,7 @@ from agent.CameraAgent import CameraAgent
 from agent.TestCameraReceiver import TestCameraReceiver
 
 from agent.MotionAgent import MotionAgent
+from agent.SensorsAgent import SensorsAgent
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
