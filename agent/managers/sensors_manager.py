@@ -155,7 +155,7 @@ class SensorsManager:
         """
         return self._read_channel(channel)
 
-    def get_battery_level(self, max_voltage: float = 7.2, min_voltage: float = 6.0, divider_ratio: float = 2.0) -> float:
+    def get_battery_level(self, max_voltage: float = 7.2, min_voltage: float = 6.0, divider_ratio: float = 3.0) -> float:
         """
         Get the battery level as a percentage.
 
