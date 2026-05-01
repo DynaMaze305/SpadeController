@@ -1,5 +1,8 @@
 import asyncio
+import json
 import logging
+import os
+import time
 
 from spade.agent import Agent, Template
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
@@ -87,17 +90,22 @@ class SensorsAgent(Agent):
             Parameter
             ---------
             command: str
-                The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
+                The command string received via XMPP, e.g., "register" "data" "battery" "sensor <sensor_type> <sensor_id>" "sensors <sensor_type> <sensor_id> <sensor_type> <sensor_id> ..."
             """
             command = msg.body.strip()
 
             if command == "register":
-                self.agent.register_list.append(str(msg.sender))
-                return "register done"
+                sender = str(msg.sender.bare)
+                if sender not in self.agent.register_list:
+                    self.agent.register_list.append(sender)
+                    logger.info(f"[Agent] Registered dashboard: {sender}")
+                    return "sensors register done"
+                return "sensors register already"
+
 
             elif command == "data":
                 if self.agent.data is not None:
-                    return f"data {self.agent.data}"
+                    return json.dumps({"data": self.agent.data})
                 self.agent.queue.put(msg)
 
             elif command == "battery":
@@ -170,29 +178,30 @@ class SensorsAgent(Agent):
 
             else:
                 logger.warning(f"[Behaviour] Unknown command: {command}")
+                return f"error {command}"
 
     class ReadSensors(PeriodicBehaviour):
         async def on_start(self):
             logger.info(f"[Behaviour] ReadSensors running every {self.period}s.")
 
         async def run(self):
-            # Read the sensors inputs
-            for sensor_type in self.agent.data.keys():
-                if sensor_type not in ["digital" or "analog"]:
-                    continue
+            # Read digital + analog sensors
+            for sensor_type in ["digital", "analog"]:
                 for sensor_id in self.agent.data[sensor_type]:
                     if sensor_type == "digital":
-                        self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_digital_sensor_value(sensor_id)
-                    elif sensor_type == "analog":
-                        self.agent.data[sensor_type][sensor_id] = self.agent.sensors_manager.get_analog_sensor_value(sensor_id)
+                        self.agent.data["digital"][sensor_id] = self.agent.sensors_manager.get_digital_sensor_value(sensor_id)
+                    else:
+                        self.agent.data["analog"][sensor_id] = self.agent.sensors_manager.get_analog_sensor_value(sensor_id)
 
-            # Add the battery level
+            # Battery
             self.agent.data["battery"] = self.agent.sensors_manager.get_battery_level()
 
-            # Add the motion status
+            # Motion
             self.agent.data["motion"] = self.agent.motion_manager.read_motion_status()
 
             logger.debug(f"[Behaviour] Updated sensor data: {self.agent.data}")
+
+            # Broadcast
             self.agent.add_behaviour(self.agent.BroadcastData())
 
     class ReadEmergencySensors(PeriodicBehaviour):
@@ -206,19 +215,20 @@ class SensorsAgent(Agent):
 
         async def run(self):
             right, left = self.agent.sensors_manager.get_ioa()
-            if right == 0:
-                if not self.emergency_right:
-                    self.emergency_right = True
-                    await self.send_emergency("right")
-            elif self.emergency_right:
+
+            # RIGHT
+            if right == 0 and not self.emergency_right:
+                self.emergency_right = True
+                await self.send_emergency("right")
+            elif right == 1 and self.emergency_right:
                 self.emergency_right = False
                 await self.send_emergency_clear("right")
-            
-            if left == 0:
-                if not self.emergency_left:
-                    self.emergency_left = True
-                    await self.send_emergency("left")
-            elif self.emergency_left:
+
+            # LEFT
+            if left == 0 and not self.emergency_left:
+                self.emergency_left = True
+                await self.send_emergency("left")
+            elif left == 1 and self.emergency_left:
                 self.emergency_left = False
                 await self.send_emergency_clear("left")
 
@@ -228,7 +238,7 @@ class SensorsAgent(Agent):
             msg.set_metadata("emergency", side)
             msg.body = f"obstacles detected"
             await self.send(msg)
-            logger.info(f"[Behaviour] Sent emergency to {msg.sender}")
+            logger.info(f"[Behaviour] Sent emergency to {msg.to}")
 
         async def send_emergency_clear(self, side: str):
             msg = Message(to=self.agent.motion_jid)
@@ -239,23 +249,30 @@ class SensorsAgent(Agent):
             else:
                 msg.body = f"obstacles clear"
             await self.send(msg)
-            logger.info(f"[Behaviour] Sent emergency to {msg.sender}")
+            logger.info(f"[Behaviour] Sent emergency clear to {msg.to}")
 
     class BroadcastData(OneShotBehaviour):
         async def on_start(self):
-            logger.info(f"[Behaviour] Broadcast sensors.")
+            logger.info("[Behaviour] Broadcasting sensors...")
 
         async def run(self):
             if not self.agent.data:
                 logger.debug("[Behaviour] No data to broadcast.")
                 return
+            payload = json.dumps({
+                "type": "data",
+                "bot": str(self.agent.jid),
+                "ts": time.time(),
+                "data": self.agent.data
+            })
 
             for jid in self.agent.register_list:
                 msg = Message(to=jid)
                 msg.set_metadata("performative", "inform")
-                msg.body = f"data {self.agent.data}"
+                msg.body = payload
                 await self.send(msg)
 
+        async def on_end(self):
             logger.info("[Behaviour] Data broadcast complete.")
 
     async def setup(self):
