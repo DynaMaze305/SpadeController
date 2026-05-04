@@ -33,10 +33,7 @@ class CameraAgent(Agent):
                 logger.info(f"[Behaviour] Received command ({msg.sender}):")
                 logger.debug(f"\t\t{msg.body}")
 
-                if msg.get_metadata("emergency"):
-                    await self.process_command(msg)
-                else:
-                    await self.queue.put(msg)
+                await self.queue.put(msg)
             else:
                 logger.debug("[Behavior] No message received?!")
 

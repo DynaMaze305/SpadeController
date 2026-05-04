@@ -34,7 +34,7 @@ class TestCameraReceiver(Agent):
                 command = msg.body
                 request = await self.process_command(command)
                 if request:
-                    reply = Message(to=str(msg.sender.bare))
+                    reply = Message(to=str(msg.sender.bare()))
                     reply.set_metadata("performative", "request")
                     reply.body = request
                     await self.send(reply)
