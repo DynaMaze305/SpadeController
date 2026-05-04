@@ -7,17 +7,20 @@ from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
 from spade.message import Message
 
 from agent.managers.motion_manager import MotionManager
-from agent.motion_models import duration_for_distance, duration_for_angle
+from agent.motion_models import (
+    duration_for_distance,
+    duration_for_angle,
+    get_ratio,
+    update as update_motion_config,
+)
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("MotionAgent")
 
-# Enable SPADE and XMPP specific logging
-for log_name in ["spade", "aioxmpp", "xmpp"]:
-    log = logging.getLogger(log_name)
-    log.setLevel(logging.DEBUG)
-    log.propagate = True
+# Quiet down SPADE / XMPP internals
+for log_name in ["spade", "aioxmpp", "xmpp", "aioopenssl"]:
+    logging.getLogger(log_name).setLevel(logging.WARNING)
 
 # Default motion parameters for fallback purpose
 STEP_DURATION = 0.5          # seconds
@@ -31,6 +34,11 @@ LEFT_RIGHT_RATIO = 1.01      # right / left motor compensation
 SMOOTH_STEPS = 5
 SMOOTH_TIME = 0.15           # seconds
 
+# Autonomous recovery: when both IR fire we cut motors and reverse a bit so
+# the bot frees itself without any controller-side handshake.
+EMERGENCY_RECOVERY_MM = 30
+EMERGENCY_RECOVERY_PWM = 10
+
 
 class MotionAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
@@ -39,44 +47,93 @@ class MotionAgent(Agent):
 
         async def run(self):
             """
-            Listen for incoming XMPP messages and process commands.
+            Listen for incoming XMPP messages and route them to the queue
+            or to the emergency processor.
             """
+            msg = await self.receive(timeout=30)
+            if not msg:
+                return
 
-            logger.info("[Behaviour] Waiting for messages...")
-            msg = await self.receive(timeout=1)
-            if msg:
-                logger.info(f"[Behaviour] Received command ({msg.sender}):")
-                logger.debug(f"\t\t{msg.body}")
+            logger.info(f"[Behaviour] Received command ({msg.sender}): {msg.body}")
 
-                if msg.get_metadata("emergency"):
-                    await self.process_command(msg)
-                else:
-                    await self.agent.queue.put(msg)
+            if msg.get_metadata("emergency"):
+                await self.process_command(msg)
             else:
-                logger.debug("[Behavior] No message received?!")
+                await self.agent.queue.put(msg)
 
         async def process_command(self, msg: Message):
             """
-            To process emergency commands.
-
-            Parameter
-            ---------
-            msg: Message
-                The emergency message.
+            Process IR-emergency notifications from SensorsAgent. Per-side IR
+            state is tracked locally; on the transition into both-blocked we
+            cut motors and fire the autonomous backward recovery.
             """
             command = msg.body
+            side = msg.get_metadata("emergency")  # "left" or "right"
 
-            if command.startswith("obstacles"):
-                state = command.split(' ', 1)
-                logger.info(f"{state}")
-                if state[1] == "detected":
-                    self.agent.emergency_brake = self.agent.motion_manager.emergency_stop()
-                elif state[1] == "clear":
-                    self.agent.emergency_brake = not self.agent.motion_manager.clear_emergency_stop()
-                elif state[1] == "override":
-                    self.agent.motion_manager.clear_emergency_stop()
-                    self.agent.emergency_brake = False
-                    return "obstacles overrided"
+            if not command.startswith("obstacles"):
+                return
+
+            state = command.split(' ', 1)[1]
+            logger.info(f"[Behaviour] Emergency: {state} (side={side})")
+
+            # manual override clears everything
+            if state == "override":
+                self.agent.ir_left_blocked = False
+                self.agent.ir_right_blocked = False
+                self.agent.motion_manager.clear_emergency_stop()
+                self.agent.emergency_brake = False
+                return
+
+            was_double = self.agent.ir_left_blocked and self.agent.ir_right_blocked
+
+            # apply the IR-level mutation
+            if state == "detected":
+                if side == "left":
+                    self.agent.ir_left_blocked = True
+                elif side == "right":
+                    self.agent.ir_right_blocked = True
+            elif state == "still":
+                if side == "left":
+                    self.agent.ir_left_blocked = False
+                elif side == "right":
+                    self.agent.ir_right_blocked = False
+            elif state == "clear":
+                self.agent.ir_left_blocked = False
+                self.agent.ir_right_blocked = False
+
+            is_double = self.agent.ir_left_blocked and self.agent.ir_right_blocked
+
+            # transition into both-blocked: latch motors and back up autonomously
+            if is_double and not was_double:
+                self.agent.motion_manager.emergency_stop()
+                self.agent.emergency_brake = True
+                self.agent.add_behaviour(MotionAgent.EmergencyRecovery())
+
+            # transition out of both-blocked: lift the latch
+            if not is_double and was_double:
+                self.agent.motion_manager.clear_emergency_stop()
+                self.agent.emergency_brake = False
+
+    class EmergencyRecovery(OneShotBehaviour):
+        """
+        Autonomous backward maneuver. Bypasses the latch with emergency_override
+        so the bot can move while it is still classified as "in emergency".
+        Once it has rolled back, the IR sensors clear and SensorsAgent will
+        signal "obstacles clear", which lifts the latch via process_command.
+        """
+        async def run(self):
+            logger.info(f"[Recovery] backing up {EMERGENCY_RECOVERY_MM}mm")
+            # tiny delay so the in-flight worker reply gets out first
+            await asyncio.sleep(0.1)
+            duration = duration_for_distance(EMERGENCY_RECOVERY_MM)
+            pwm_left = EMERGENCY_RECOVERY_PWM
+            pwm_right = pwm_left * get_ratio(is_backward=True)
+            self.agent.motion_manager.backward(
+                int(pwm_left), int(pwm_right), emergency_override=True,
+            )
+            await asyncio.sleep(duration)
+            self.agent.motion_manager.stop()
+            logger.info("[Recovery] done")
 
     class Worker(CyclicBehaviour):
         async def on_start(self):
@@ -84,7 +141,7 @@ class MotionAgent(Agent):
 
         async def run(self):
             """
-            Execution of the waiting instructions.
+            Pull queued commands and execute them, replying with the result.
             """
             msg = await self.agent.queue.get()
 
@@ -92,17 +149,16 @@ class MotionAgent(Agent):
             try:
                 response = await self.process_command(msg.body, override_stop=keyboard_signal)
             except RuntimeError as e:
-                logger.error(f"[Behaviour] Worker: RuntimeError ({e})during process message:\n{msg}")
+                logger.error(f"[Behaviour] Worker: RuntimeError ({e}) during process message:\n{msg}")
                 response = f"Error: {e}"
 
-            # Send a confirmation response
             reply = Message(to=str(msg.sender))
             reply.set_metadata("performative", "inform")
             reply.body = f"Executed command: {msg.body}\n{response}"
             await self.send(reply)
             logger.info(f"[Behaviour] Sent reply to {msg.sender}")
 
-        # decrementing the motors to 0 instead of abrupt stop
+        # decrementing the motors to 0 instead of an abrupt stop
         async def smooth_stop(self, pwm_left, pwm_right, steps=SMOOTH_STEPS, smoothing_time=SMOOTH_TIME):
             step_time = smoothing_time / steps
             for i in range(steps, 0, -1):
@@ -112,8 +168,7 @@ class MotionAgent(Agent):
                 await asyncio.sleep(step_time)
             self.agent.motion_manager.stop()
 
-        # Functions that rotates the robot
-        # Takes an angle in degrees as a parameter
+        # rotation by a signed angle in degrees
         async def rotate_by(self, degrees: float, duration: float = None, pwm: int = None, ratio: int = None):
             if pwm is None:
                 pwm_left = ROTATION_PWM_DEFAULT
@@ -133,35 +188,27 @@ class MotionAgent(Agent):
                 if duration is None:
                     duration = abs(degrees) / ROTATION_DEG_PER_SEC
 
-            logger.info(f"[Behaviour] Rotating deg={degrees} duration={duration:.2f}s pwm={pwm_left} ratio={pwm_right/pwm_left:.3f} positive={is_positive}")
+            logger.info(
+                f"[Behaviour] Rotating deg={degrees} duration={duration:.2f}s "
+                f"pwm={pwm_left} ratio={pwm_right/pwm_left:.3f} positive={is_positive}"
+            )
 
-            # invert the motors for negative values
             if is_positive:
                 self.agent.motion_manager.left(int(pwm_left), int(pwm_right))
             else:
                 self.agent.motion_manager.right(int(pwm_left), int(pwm_right))
 
-            # defining a smoothing value , not longer than half the duration
             smooth_time = min(SMOOTH_TIME, duration / 2)
             await asyncio.sleep(duration - smooth_time)
-
-            # calling the modified stop to have a less abrupt stop
             await self.smooth_stop(pwm_left, pwm_right, smoothing_time=smooth_time)
 
-        # Functions that moves the robot forward / backward
-        # Takes a distance in mm as parameter
-        async def forward_by(self, distance: float, duration : float = None, pwm: int = None, ratio: int = None):
+        # forward / backward by a signed distance in mm
+        async def forward_by(self, distance: float, duration: float = None, pwm: int = None, ratio: int = None):
             if pwm is None:
                 pwm_left = FORWARD_PWM_LEFT
             else:
                 pwm_left = pwm
 
-            if ratio is None:
-                pwm_right = pwm_left * LEFT_RIGHT_RATIO
-            else:
-                pwm_right = pwm_left * ratio
-
-            # calculating the distance if duration is None
             if distance is None:
                 is_backward = duration < 0
                 duration = abs(duration)
@@ -170,80 +217,68 @@ class MotionAgent(Agent):
                 if duration is None:
                     duration = duration_for_distance(distance)
 
-            logger.info(f"[Behaviour] Moving dist={distance} duration={duration:.2f}s pwm={pwm_left} ratio={pwm_right/pwm_left:.3f} backward={is_backward}")
+            if ratio is None:
+                ratio = get_ratio(is_backward)
+            pwm_right = pwm_left * ratio
 
-            # invert the motors for negative values
+            logger.info(
+                f"[Behaviour] Moving dist={distance} duration={duration:.2f}s "
+                f"pwm={pwm_left} ratio={pwm_right/pwm_left:.3f} backward={is_backward}"
+            )
+
             if is_backward:
                 self.agent.motion_manager.backward(int(pwm_left), int(pwm_right))
             else:
                 self.agent.motion_manager.forward(int(pwm_left), int(pwm_right))
 
-            # defining a smoothing value , not longer than half the duration
             smooth_time = min(SMOOTH_TIME, duration / 2)
             await asyncio.sleep(duration - smooth_time)
-
-            # calling the modified stop to have a less abrupt stop
             await self.smooth_stop(pwm_left, pwm_right, smoothing_time=smooth_time)
 
         async def process_command(self, command: str, override_stop: bool = False):
             """
-            Process the received command and execute corresponding actions on the AlphaBot2.
-
-            Parameters
-            ----------
-            command: str
-                The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
-            override_stop: bool
-                Override the emergency break
+            Parse the message body and execute the corresponding action.
             """
             command = command.strip()
 
-            if self.agent.emergency_brake and not override_stop and command not in ("stop",):
-                logger.warning(f"Command '{command}' blocked — obstacle detected.")
-                return
-
             if command == "forward":
                 logger.info("[Behaviour] Moving forward...")
-                self.agent.motion_manager.forward(emergency_override = override_stop)
+                self.agent.motion_manager.forward(emergency_override=override_stop)
                 await asyncio.sleep(STEP_DURATION)
-                self.agent.motion_manager.stop(emergency_override = override_stop)
-                
+                self.agent.motion_manager.stop(emergency_override=override_stop)
+
             elif command == "backward":
                 logger.info("[Behaviour] Moving backward...")
-                self.agent.motion_manager.backward(emergency_override = override_stop)
+                self.agent.motion_manager.backward(emergency_override=override_stop)
                 await asyncio.sleep(STEP_DURATION)
-                self.agent.motion_manager.stop(emergency_override = override_stop)
-                
+                self.agent.motion_manager.stop(emergency_override=override_stop)
+
             elif command == "left":
                 logger.info("[Behaviour] Turning left...")
-                self.agent.motion_manager.left(emergency_override = override_stop)
+                self.agent.motion_manager.left(emergency_override=override_stop)
                 await asyncio.sleep(ROTATION_DURATION)
-                self.agent.motion_manager.stop(emergency_override = override_stop)
-                
+                self.agent.motion_manager.stop(emergency_override=override_stop)
+
             elif command == "right":
                 logger.info("[Behaviour] Turning right...")
-                self.agent.motion_manager.right(emergency_override = override_stop)
+                self.agent.motion_manager.right(emergency_override=override_stop)
                 await asyncio.sleep(ROTATION_DURATION)
-                self.agent.motion_manager.stop(emergency_override = override_stop)
-                
+                self.agent.motion_manager.stop(emergency_override=override_stop)
+
             elif command.startswith("motor "):
                 try:
                     _, left, right = command.split()
                     left_speed = int(left)
                     right_speed = int(right)
-                    logger.info(f"[Behaviour] Setting motor speeds to {left_speed} (left) and {right_speed} (right)...")
+                    logger.info(
+                        f"[Behaviour] Setting motor speeds to {left_speed} (left) and {right_speed} (right)..."
+                    )
                     self.agent.motion_manager.set_motors(left_speed, right_speed, override_stop)
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid motor command format. Use 'motor <left_speed> <right_speed>'")
 
-            # Command for a specific rotation angle instead of left/right
+            # rotation <angle> [duration] [pwm] [ratio]
             elif command.startswith("rotation "):
-
-                # Splitting the incoming command into
-                # angle
-                # duration
-                # pwm
-                # ratio
                 try:
                     parts = command.split()
                     angle = float(parts[1])
@@ -251,30 +286,23 @@ class MotionAgent(Agent):
                     pwm = int(parts[3]) if len(parts) > 3 else None
                     ratio = float(parts[4]) if len(parts) > 4 else None
 
-                    # calculate the angle from the linearModel
                     if angle == 0:
                         angle = None
                     else:
                         duration = duration_for_angle(angle)
 
-                    # fallback to None (default) if value is 0
                     if pwm == 0:
                         pwm = None
                     if ratio == 0:
                         ratio = None
 
-                    # execute the movement
                     await self.rotate_by(angle, duration, pwm, ratio)
 
                 except (ValueError, IndexError):
                     logger.error("[Behaviour] Invalid rotation command")
 
+            # move <distance> [duration] [pwm] [ratio]
             elif command.startswith("move "):
-                # Splitting the incoming command into
-                # distance
-                # duration
-                # pwm
-                # ratio
                 try:
                     parts = command.split()
                     distance = float(parts[1])
@@ -282,14 +310,11 @@ class MotionAgent(Agent):
                     pwm = int(parts[3]) if len(parts) > 3 else None
                     ratio = float(parts[4]) if len(parts) > 4 else None
 
-                    # calculate the distance from the linearModel
                     if distance == 0:
                         distance = None
                     else:
                         duration = duration_for_distance(distance)
-                        logger.info("f[Behaviour] Calculated duration: {duration}")
 
-                    # fallback to None (default) if value is 0
                     if duration == 0:
                         duration = None
                     if pwm == 0:
@@ -297,7 +322,6 @@ class MotionAgent(Agent):
                     if ratio == 0:
                         ratio = None
 
-                    # Execute the movement
                     await self.forward_by(distance, duration, pwm, ratio)
 
                 except (ValueError, IndexError):
@@ -305,31 +329,41 @@ class MotionAgent(Agent):
 
             elif command == "stop":
                 logger.info("[Behaviour] Stopping...")
-                self.agent.motion_manager.stop(emergency_override = override_stop)
+                self.agent.motion_manager.stop(emergency_override=override_stop)
+
+            # calibrate <key> <value> [value]
+            elif command.startswith("calibrate "):
+                try:
+                    parts = command.split()
+                    key = parts[1]
+                    values = [float(x) for x in parts[2:]]
+                    result = update_motion_config(key, values)
+                    logger.info(f"[Behaviour] {result}")
+                    return result
+                except (ValueError, IndexError) as e:
+                    logger.error(f"[Behaviour] Invalid calibrate command: {e}")
+                    return f"Error: {e}"
 
             else:
                 logger.warning(f"[Behaviour] Unknown command: {command}")
 
     async def setup(self):
-        """
-        Setup the agent and add its behaviors.
-        """
         logger.info("[Agent] MotionAgent starting setup...")
         logger.info(f"[Agent] Will connect as {self.jid}")
 
         self.motion_manager = MotionManager()
         self.emergency_brake = False
+        # per-side IR state, used by process_command to detect both-blocked transitions
+        self.ir_left_blocked = False
+        self.ir_right_blocked = False
         self.queue = asyncio.Queue()
 
-        # Add command listener behaviour
         template = Template()
         template.set_metadata("performative", "request")
         self.add_behaviour(self.XMPPCommandListener(), template=template)
 
-        # Add worker
         worker_template = Template()
         worker_template.set_metadata("never", "match")
         self.add_behaviour(self.Worker(), template=worker_template)
-
 
         logger.info("[Agent] Behaviours added, setup complete.")
