@@ -193,6 +193,35 @@ class MotionManager:
             self.PWMA.ChangeDutyCycle(pa)
             self.PWMB.ChangeDutyCycle(pb)
     
+    # signed PWM per motor: negative -> reverse direction (sets dir pins + duty)
+    def setSignedPWMA(self, value: int, emergency_override: bool = False):
+        with self._lock:
+            self._check_emergency(emergency_override)
+            if value >= 0:
+                GPIO.output(self.AIN1, GPIO.LOW)
+                GPIO.output(self.AIN2, GPIO.HIGH)
+            else:
+                GPIO.output(self.AIN1, GPIO.HIGH)
+                GPIO.output(self.AIN2, GPIO.LOW)
+                value = -value
+            value = self._safe_pwm(value)
+            self._last_pwm_left = value
+            self.PWMA.ChangeDutyCycle(value)
+
+    def setSignedPWMB(self, value: int, emergency_override: bool = False):
+        with self._lock:
+            self._check_emergency(emergency_override)
+            if value >= 0:
+                GPIO.output(self.BIN1, GPIO.LOW)
+                GPIO.output(self.BIN2, GPIO.HIGH)
+            else:
+                GPIO.output(self.BIN1, GPIO.HIGH)
+                GPIO.output(self.BIN2, GPIO.LOW)
+                value = -value
+            value = self._safe_pwm(value)
+            self._last_pwm_right = value
+            self.PWMB.ChangeDutyCycle(value)
+
     def _setPWM_internal_only(self, pa: int, pb: int, emergency_override: bool = False):
         """
         Set the duty cycle for the motors.
@@ -235,7 +264,7 @@ class MotionManager:
         """
         with self._lock:
             self._check_emergency(emergency_override)
-            self._setPWM_internal_only(pa, pb)
+            self._setPWM_internal_only(pa, pb, emergency_override=emergency_override)
             GPIO.output(self.AIN1, GPIO.LOW)
             GPIO.output(self.AIN2, GPIO.HIGH)
             GPIO.output(self.BIN1, GPIO.LOW)
@@ -262,7 +291,7 @@ class MotionManager:
         """
         with self._lock:
             self._check_emergency(emergency_override)
-            self._setPWM_internal_only(pa, pb)
+            self._setPWM_internal_only(pa, pb, emergency_override=emergency_override)
             GPIO.output(self.AIN1, GPIO.HIGH)
             GPIO.output(self.AIN2, GPIO.LOW)
             GPIO.output(self.BIN1, GPIO.HIGH)
@@ -283,7 +312,7 @@ class MotionManager:
         """
         with self._lock:
             self._check_emergency(emergency_override)
-            self._setPWM_internal_only(pa, pb)
+            self._setPWM_internal_only(pa, pb, emergency_override=emergency_override)
             GPIO.output(self.AIN1, GPIO.HIGH)
             GPIO.output(self.AIN2, GPIO.LOW)
             GPIO.output(self.BIN1, GPIO.LOW)
@@ -304,7 +333,7 @@ class MotionManager:
         """
         with self._lock:
             self._check_emergency(emergency_override)
-            self._setPWM_internal_only(pa, pb)
+            self._setPWM_internal_only(pa, pb, emergency_override=emergency_override)
             GPIO.output(self.AIN1, GPIO.LOW)
             GPIO.output(self.AIN2, GPIO.HIGH)
             GPIO.output(self.BIN1, GPIO.HIGH)
