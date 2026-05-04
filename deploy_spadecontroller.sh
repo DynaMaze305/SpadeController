@@ -8,8 +8,8 @@ echo "$(date) - Deployment started"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_PATH="${SCRIPT_DIR}"
 
-# Load .env file (local config for deployment)
-ENV_FILE="${LOCAL_PATH}/.env.template"
+# Load .env file (local config for deployment — real values, not the template)
+ENV_FILE="${LOCAL_PATH}/.env"
 if [ -f $ENV_FILE ]; then
     source $ENV_FILE
 else
@@ -120,7 +120,14 @@ read -rp "Proceed with deployment? (y/n) " confirm
 [[ "$confirm" != "y" ]] && exit 0
 
 # Run rsync
-rsync ${RSYNC_OPTS} -e "ssh -p ${SSH_PORT}" \
+rsync ${RSYNC_OPTS} \
+    --exclude='.venv' \
+    --exclude='.git' \
+    --exclude='.claude' \
+    --exclude='CLAUDE.md' \
+    --exclude='__pycache__' \
+    --exclude='agent/motion_models.json' \
+    -e "ssh -p ${SSH_PORT}" \
     "${LOCAL_PATH}/" \
     "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
 
