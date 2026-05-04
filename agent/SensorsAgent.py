@@ -95,7 +95,7 @@ class SensorsAgent(Agent):
             command = msg.body.strip()
 
             if command == "register":
-                sender = str(msg.sender.bare)
+                sender = str(msg.sender.bare())
                 if sender not in self.agent.register_list:
                     self.agent.register_list.append(sender)
                     logger.info(f"[Agent] Registered dashboard: {sender}")
