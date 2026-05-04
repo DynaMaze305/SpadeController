@@ -1,0 +1,20 @@
+{
+  "forward": {
+    "slope": 186.24,
+    "intercept": -17.69
+  },
+  "backward": {
+    "slope": 209.33,
+    "intercept": -18.43
+  },
+  "positive": {
+    "slope": 201.54,
+    "intercept": -18.9
+  },
+  "negative": {
+    "slope": 218.08,
+    "intercept": -16.0
+  },
+  "ratio_forward": 1.01,
+  "ratio_backward": 1.01
+}
