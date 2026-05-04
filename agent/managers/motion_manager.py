@@ -390,14 +390,10 @@ class MotionManager:
             return "unknown"
 
         return {
-            "left_motor": {
-                "direction": decode_direction(bin1, bin2),
-                "pwm": self._last_pwm_left
-            },
-            "right_motor": {
-                "direction": decode_direction(ain1, ain2),
-                "pwm": self._last_pwm_right
-            },
+            "left_direction": decode_direction(bin1, bin2),
+            "left_pwm": self._last_pwm_left,
+            "right_direction": decode_direction(ain1, ain2),
+            "right_pwm": self._last_pwm_right,
             "emergency_stop": self._emergency_stop
         }
 
