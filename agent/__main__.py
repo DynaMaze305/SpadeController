@@ -12,14 +12,12 @@ from agent.TestCameraReceiver import TestCameraReceiver
 from agent.TestAgent import TestAgent
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Main")
 
-# Enable SPADE and XMPP specific logging
-for log_name in ["spade", "aioxmpp", "xmpp"]:
-    log = logging.getLogger(log_name)
-    log.setLevel(logging.DEBUG)
-    log.propagate = True
+# Quiet down SPADE / XMPP internals
+for log_name in ["spade", "aioxmpp", "xmpp", "aioopenssl"]:
+    logging.getLogger(log_name).setLevel(logging.WARNING)
 
 async def start_motion_agent(run_agent: bool) -> Agent:
     # Read XMPP credentials and configuration from environment variables
@@ -93,8 +91,8 @@ async def start_sensors_agent(run_agent: bool) -> Agent:
         # Create and start the agent
         agent = SensorsAgent(
             motion_jid=xmpp_motion_jid,
-            period_sensors=10,
-            period_emergency=1,
+            period_sensors=1,
+            period_emergency=0.001,
             jid=xmpp_jid,
             password=xmpp_password,
             verify_security=False
@@ -149,7 +147,7 @@ async def start_test_camera(run_agent: bool) -> Agent:
 
 async def main():
     motion_agent = await start_motion_agent(True)
-    camera_agent = await start_camera_agent(True)
+    camera_agent = await start_camera_agent(False)
     sensors_agent = await start_sensors_agent(True)
 
     if motion_agent is None or camera_agent is None or sensors_agent is None:
@@ -160,25 +158,18 @@ async def main():
 
     try:
         while True:
-            await asyncio.sleep(5)
-            running = False
-            logger.info("Display alive agents:")
-            if motion_agent:
-                if motion_agent.is_alive():
-                    logger.info("MotionAgent is alive and running...")
-                    running = True
+            await asyncio.sleep(30)
 
-            if camera_agent:
-                if camera_agent.is_alive():
-                    logger.info("CameraAgent is alive and running...")
-                    running = True
+            # check liveness silently; only log if something died
+            agents = {
+                "MotionAgent": motion_agent,
+                "CameraAgent": camera_agent,
+                "SensorsAgent": sensors_agent,
+            }
+            alive = [name for name, a in agents.items() if a and a.is_alive()]
 
-            if sensors_agent:
-                if sensors_agent.is_alive():
-                    logger.info("SensorsAgent is alive and running...")
-                    running = True
-
-            if not running:
+            if not alive:
+                logger.warning("No agents alive, exiting main loop")
                 break
 
     except asyncio.CancelledError:
