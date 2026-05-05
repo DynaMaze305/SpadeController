@@ -9,3 +9,6 @@ __pycache__
 
 CLAUDE.md
 .claude/
+
+# created at runtime by motion_models.py; canonical sources are motion_models_<bot>.json
+agent/motion_models.json
