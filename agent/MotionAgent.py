@@ -1,6 +1,7 @@
 import asyncio
 import os
 import logging
+import time
 
 from spade.agent import Agent, Template
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour, OneShotBehaviour
@@ -28,7 +29,6 @@ ROTATION_DURATION = 1.0      # seconds
 ROTATION_DEG_PER_SEC = 45    # degrees per second
 ROTATION_PWM_DEFAULT = 20    # duty cycle for rotations
 FORWARD_PWM_LEFT = 0.4       # duty cycle for forward
-LEFT_RIGHT_RATIO = 1.01      # right / left motor compensation
 
 # Smooth-stop ramp
 SMOOTH_STEPS = 5
@@ -38,6 +38,14 @@ SMOOTH_TIME = 0.15           # seconds
 # the bot frees itself without any controller-side handshake.
 EMERGENCY_RECOVERY_MM = 30
 EMERGENCY_RECOVERY_PWM = 10
+EMERGENCY_RECOVERY_MAX_ATTEMPTS = 5  # safety cap, bail if the bot cannot free itself
+EMERGENCY_RECOVERY_SETTLE = 0.1      # pause between attempts to let IR readings stabilize
+
+# Single-IR evasive kick: when one IR fires during forward motion, the wheel
+# physically opposite the obstacle does a brief reverse pulse to nudge the bot
+# away while the same-side wheel keeps pushing forward.
+EVASIVE_KICK_PWM = 5
+EVASIVE_KICK_DURATION = 0.5  # seconds
 
 
 class MotionAgent(Agent):
@@ -114,26 +122,36 @@ class MotionAgent(Agent):
                 self.agent.motion_manager.clear_emergency_stop()
                 self.agent.emergency_brake = False
 
+    # Autonomous backward maneuver. Bypasses the latch with emergency_override
+    # so the bot can move while it is still classified as in emergency.
+    # Loops until at least one IR clears, which lifts the latch via process_command,
+    # or the safety cap is reached.
     class EmergencyRecovery(OneShotBehaviour):
-        """
-        Autonomous backward maneuver. Bypasses the latch with emergency_override
-        so the bot can move while it is still classified as "in emergency".
-        Once it has rolled back, the IR sensors clear and SensorsAgent will
-        signal "obstacles clear", which lifts the latch via process_command.
-        """
         async def run(self):
-            logger.info(f"[Recovery] backing up {EMERGENCY_RECOVERY_MM}mm")
             # tiny delay so the in-flight worker reply gets out first
             await asyncio.sleep(0.1)
             duration = duration_for_distance(EMERGENCY_RECOVERY_MM)
             pwm_left = EMERGENCY_RECOVERY_PWM
             pwm_right = pwm_left * get_ratio(is_backward=True)
-            self.agent.motion_manager.backward(
-                int(pwm_left), int(pwm_right), emergency_override=True,
-            )
-            await asyncio.sleep(duration)
-            self.agent.motion_manager.stop()
-            logger.info("[Recovery] done")
+            attempts = 0
+            while (
+                self.agent.ir_left_blocked
+                and self.agent.ir_right_blocked
+                and attempts < EMERGENCY_RECOVERY_MAX_ATTEMPTS
+            ):
+                attempts += 1
+                logger.info(f"[Recovery] backing up {EMERGENCY_RECOVERY_MM}mm (attempt {attempts}/{EMERGENCY_RECOVERY_MAX_ATTEMPTS})")
+                self.agent.motion_manager.backward(
+                    int(pwm_left), int(pwm_right), emergency_override=True,
+                )
+                await asyncio.sleep(duration)
+                self.agent.motion_manager.stop()
+                # let the IR readings settle, SensorsAgent polls at 100Hz so a couple ticks is plenty
+                await asyncio.sleep(EMERGENCY_RECOVERY_SETTLE)
+            if attempts >= EMERGENCY_RECOVERY_MAX_ATTEMPTS and self.agent.ir_left_blocked and self.agent.ir_right_blocked:
+                logger.warning(f"[Recovery] gave up after {attempts} attempts, bot still wedged")
+            else:
+                logger.info(f"[Recovery] done after {attempts} attempts")
 
     class Worker(CyclicBehaviour):
         async def on_start(self):
@@ -175,10 +193,10 @@ class MotionAgent(Agent):
             else:
                 pwm_left = pwm
 
+            # rotation reuses the forward ratio from motion_models.json
             if ratio is None:
-                pwm_right = pwm_left * LEFT_RIGHT_RATIO
-            else:
-                pwm_right = pwm_left * ratio
+                ratio = get_ratio(is_backward=False)
+            pwm_right = pwm_left * ratio
 
             if degrees is None:
                 is_positive = duration > 0
@@ -232,7 +250,58 @@ class MotionAgent(Agent):
                 self.agent.motion_manager.forward(int(pwm_left), int(pwm_right))
 
             smooth_time = min(SMOOTH_TIME, duration / 2)
-            await asyncio.sleep(duration - smooth_time)
+
+            # forward only: poll IR flags and apply per-wheel mask + reverse-kick on rising edge.
+            # backward keeps the plain sleep since the IR sensors are forward-facing.
+            if not is_backward:
+                end_at = time.monotonic() + (duration - smooth_time)
+                poll_period = 0.05
+                # rising-edge tracking for the per-side reverse kick
+                prev_left_blocked = False
+                prev_right_blocked = False
+                # kick deadlines per wheel; the kick runs for the full EVASIVE_KICK_DURATION
+                # regardless of mid-flight sensor changes
+                left_kick_until = 0.0
+                right_kick_until = 0.0
+                while time.monotonic() < end_at:
+                    left_blocked = self.agent.ir_left_blocked
+                    right_blocked = self.agent.ir_right_blocked
+                    now = time.monotonic()
+
+                    # rising edges on each IR schedule a kick on the physically-opposite wheel
+                    # wire-swap note: left_target drives the physical right wheel, vice versa
+                    if left_blocked and not prev_left_blocked:
+                        left_kick_until = now + EVASIVE_KICK_DURATION
+                    if right_blocked and not prev_right_blocked:
+                        right_kick_until = now + EVASIVE_KICK_DURATION
+                    prev_left_blocked = left_blocked
+                    prev_right_blocked = right_blocked
+
+                    # timer-gated kick takes priority over the IR-blocked = 0 rule
+                    if now < left_kick_until:
+                        left_target = -EVASIVE_KICK_PWM
+                    elif left_blocked:
+                        left_target = 0
+                    else:
+                        left_target = int(pwm_left)
+
+                    if now < right_kick_until:
+                        right_target = -EVASIVE_KICK_PWM
+                    elif right_blocked:
+                        right_target = 0
+                    else:
+                        right_target = int(pwm_right)
+
+                    try:
+                        self.agent.motion_manager.setSignedPWMA(left_target)
+                        self.agent.motion_manager.setSignedPWMB(right_target)
+                    except RuntimeError:
+                        # both-IR latch fired -> EmergencyRecovery has been queued; bail out
+                        break
+                    await asyncio.sleep(poll_period)
+            else:
+                await asyncio.sleep(duration - smooth_time)
+
             await self.smooth_stop(pwm_left, pwm_right, smoothing_time=smooth_time)
 
         async def process_command(self, command: str, override_stop: bool = False):

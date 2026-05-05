@@ -83,9 +83,9 @@ def get_linear(name: str) -> LinearModel:
 
 
 # return the right/left ratio for forward or backward motion
-def get_ratio(backward: bool) -> float:
+def get_ratio(is_backward: bool) -> float:
     cfg = _cfg()
-    return cfg["ratio_backward"] if backward else cfg["ratio_forward"]
+    return cfg["ratio_backward"] if is_backward else cfg["ratio_forward"]
 
 
 # update one calibration entry and write the json to disk
