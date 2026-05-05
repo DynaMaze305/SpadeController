@@ -34,7 +34,7 @@ services:
     profiles: ["test"]
     privileged: false
     devices:
-      - /dev/gpiomem:/dev/gpiomemsomehwe
+      - /dev/gpiomem:/dev/gpiomem
     extra_hosts:
       - "isc-coordinator.lan:192.168.88.250"
       - "isc-coordinator2.lan:192.168.88.226"
