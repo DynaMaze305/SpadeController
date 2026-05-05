@@ -4,25 +4,17 @@ LOGFILE=deploy.log
 echo "$(date) - Deployment started" >> $LOGFILE
 echo "$(date) - Deployment started"
 
-# CLI flags
-FORCE_MODEL=0
-for arg in "$@"; do
-    case "$arg" in
-        --force-model) FORCE_MODEL=1 ;;
-        *) echo "Unknown argument: $arg" ; exit 1 ;;
-    esac
-done
-
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_PATH="${SCRIPT_DIR}"
 
-# Load .env file with real values for deployment, not the template
-ENV_FILE="${LOCAL_PATH}/.env"
+# Load .env file (local config for deployment)
+ENV_FILE="${LOCAL_PATH}/.env.template"
 if [ -f $ENV_FILE ]; then
     source $ENV_FILE
 else
     echo "$ENV_FILE file not found" >> $LOGFILE
+    echo "$ENV_FILE file not found"
     exit 1
 fi
 
@@ -66,11 +58,6 @@ if [ -z "$REMOTE_HOST" ] || [ -z "$XMPP_USERNAME" ] || [ -z "$XMPP_DOMAIN" ]; th
     exit 1
 fi
 
-# Set the agent name for XMPP
-MOTION_AGENT="motion-${XMPP_USERNAME}@${XMPP_DOMAIN}"
-CAMERA_AGENT="camera-${XMPP_USERNAME}@${XMPP_DOMAIN}"
-SENSORS_AGENT="sensors-${XMPP_USERNAME}@${XMPP_DOMAIN}"
-
 # Generate .env file for the selected bot
 TEMPLATE="${LOCAL_PATH}/.env.template"
 OUTPUT="${LOCAL_PATH}/.env.remote"
@@ -102,12 +89,7 @@ mv "$tmpfile" "$OUTPUT"
 
 sed -i "s|{{REMOTE_HOST}}|$REMOTE_HOST|g" "$OUTPUT"
 sed -i "s|{{XMPP_USERNAME}}|$XMPP_USERNAME|g" "$OUTPUT"
-sed -i "s|{{XMPP_PASSWORD}}|$XMPP_PASSWORD|g" "$OUTPUT"
 sed -i "s|{{XMPP_DOMAIN}}|$XMPP_DOMAIN|g" "$OUTPUT"
-
-sed -i "s|{{MOTION_AGENT}}|$MOTION_AGENT|g" "$OUTPUT"
-sed -i "s|{{CAMERA_AGENT}}|$CAMERA_AGENT|g" "$OUTPUT"
-sed -i "s|{{SENSORS_AGENT}}|$SENSORS_AGENT|g" "$OUTPUT"
 
 echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)" >> $LOGFILE
 echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)"
@@ -115,7 +97,17 @@ echo "Generated .env for bot $bot_choice (XMPP coordinator $coordinator)"
 
 # Default values
 SSH_PORT=${SSH_PORT:-22}
+
 RSYNC_OPTS=${RSYNC_OPTS:--avz --delete}
+
+if [ "$FORCE_MODEL" -eq 1 ]; then
+    MODEL_LOCAL="${LOCAL_PATH}/agent/motion_models_${bot_choice}.json"
+    MODEL_REMOTE="${LOCAL_PATH}/agent/motion_models.json"
+
+    if [ -f "$MODEL_LOCAL" ]; then
+      mv MODEL_LOCAL MODEL_REMOTE
+    fi
+fi
 
 echo "Deploying folder to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}" >> $LOGFILE
 echo "Using rsync options: ${RSYNC_OPTS}" >> $LOGFILE
@@ -125,38 +117,14 @@ echo "Using rsync options: ${RSYNC_OPTS}"
 echo "XMPP base JID will be: ${XMPP_USERNAME}@${XMPP_DOMAIN}"
 
 # Confirm deployment
+echo "Did you check the agents XMPP name?"
 read -rp "Proceed with deployment? (y/n) " confirm
 [[ "$confirm" != "y" ]] && exit 0
 
-# Run rsync, always excluding motion_models*.json from the project sync.
-# Calibration is shipped only when --force-model is set, see the second rsync below.
-rsync ${RSYNC_OPTS} \
-    --exclude='.venv' \
-    --exclude='.git' \
-    --exclude='.claude' \
-    --exclude='CLAUDE.md' \
-    --exclude='__pycache__' \
-    --exclude='agent/motion_models*.json' \
-    -e "ssh -p ${SSH_PORT}" \
+# Run rsync
+rsync ${RSYNC_OPTS} -e "ssh -p ${SSH_PORT}" \
     "${LOCAL_PATH}/" \
     "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
-
-# Per-bot calibration: only when --force-model is passed
-if [ "$FORCE_MODEL" -eq 1 ]; then
-    MODEL_LOCAL="${LOCAL_PATH}/agent/motion_models_${bot_choice}.json"
-    MODEL_REMOTE="${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/agent/motion_models.json"
-    if [ ! -f "$MODEL_LOCAL" ]; then
-        echo "Missing $MODEL_LOCAL, cannot deploy calibration for bot ${bot_choice}." >> $LOGFILE
-        echo "Missing $MODEL_LOCAL, cannot deploy calibration for bot ${bot_choice}."
-        exit 1
-    fi
-    rsync -avz -e "ssh -p ${SSH_PORT}" "$MODEL_LOCAL" "$MODEL_REMOTE"
-    echo "Deployed calibration: $(basename $MODEL_LOCAL) -> motion_models.json on bot ${bot_choice}"
-    echo "Deployed calibration: $(basename $MODEL_LOCAL) -> motion_models.json on bot ${bot_choice}" >> $LOGFILE
-else
-    echo "Skipping calibration push (use --force-model to overwrite the bot's motion_models.json)"
-    echo "Skipping calibration push (use --force-model to overwrite the bot's motion_models.json)" >> $LOGFILE
-fi
 
 rm ${OUTPUT}
 
