@@ -147,7 +147,7 @@ async def start_test_camera(run_agent: bool) -> Agent:
 
 async def main():
     motion_agent = await start_motion_agent(True)
-    camera_agent = await start_camera_agent(False)
+    camera_agent = await start_camera_agent(True)
     sensors_agent = await start_sensors_agent(True)
 
     if motion_agent is None or camera_agent is None or sensors_agent is None:

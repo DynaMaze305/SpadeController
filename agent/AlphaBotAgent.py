@@ -93,7 +93,7 @@ class AlphaBotAgent(Agent):
                 await self.process_command(msg.body, override_stop=keyboard_signal)
                 
                 # Send a confirmation response
-                reply = Message(to=str(msg.sender))
+                reply = Message(to=str(msg.sender.bare()))
                 reply.set_metadata("performative", "inform")
                 reply.body = f"Executed command: {msg.body}"
                 await self.send(reply)

@@ -37,7 +37,7 @@ class CameraAgent(Agent):
                 logger.info(f"[Behaviour] Received command ({msg.sender}):")
                 logger.debug(f"\t\t{msg.body}")
 
-                await self.queue.put(msg)
+                await self.agent.queue.put(msg)
             else:
                 logger.debug("[Behavior] No message received?!")
 
@@ -58,7 +58,7 @@ class CameraAgent(Agent):
                 response = f"Error: {e}"
 
             # Send a confirmation response
-            reply = Message(to=str(msg.sender))
+            reply = Message(to=str(msg.sender.bare()))
             reply.set_metadata("performative", "inform")
             reply.body = f"Executed command: {msg.body}\n{response}"
             await self.send(reply)
