@@ -76,7 +76,7 @@ class SensorsAgent(Agent):
                 logger.error(f"[Behaviour] Worker: RuntimeError ({e})during process message:\n{msg}")
                 response = f"Error: {e}"
 
-            reply = Message(to=str(msg.sender))
+            reply = Message(to=str(msg.sender.bare()))
             reply.set_metadata("performative", "inform")
             reply.body = f"Executed command: {msg.body}\n{response}"
             await self.send(reply)
