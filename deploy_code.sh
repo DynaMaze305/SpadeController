@@ -105,7 +105,7 @@ if [ "$FORCE_MODEL" -eq 1 ]; then
     MODEL_REMOTE="${LOCAL_PATH}/agent/motion_models.json"
 
     if [ -f "$MODEL_LOCAL" ]; then
-      mv MODEL_LOCAL MODEL_REMOTE
+      cp MODEL_LOCAL MODEL_REMOTE
     fi
 fi
 
