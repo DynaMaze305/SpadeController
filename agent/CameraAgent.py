@@ -1,11 +1,13 @@
 import asyncio
 import logging
+import os
 
 from spade.agent import Agent, Template
 from spade.behaviour import CyclicBehaviour, OneShotBehaviour
 from spade.message import Message
 
 from agent.managers.camera_manager import CameraManager
+from agent.managers.buzzer_manager import BuzzerManager
 from rpi_ws281x import Color
 
 # Configure logging
@@ -17,6 +19,8 @@ for log_name in ["spade", "aioxmpp", "xmpp"]:
     log = logging.getLogger(log_name)
     log.setLevel(logging.DEBUG)
     log.propagate = True
+
+AUDIO_FILE = os.environ.get("REMOTE_PATH") + "/audio"
 
 class CameraAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
@@ -70,6 +74,7 @@ class CameraAgent(Agent):
                 The command string received via XMPP, e.g., "forward", "backward", "left", "right", "motor 100 100", etc.
             """
             command = command.strip().lower()
+
             # -----------------------------
             # Streaming commands (Currently in development)
             # -----------------------------
@@ -108,7 +113,7 @@ class CameraAgent(Agent):
                 img_data = self.agent.camera_agent.capture_still()
                 logger.info(f"[Behaviour] Captured still image")
                 return f"image {str(img_data)}"
-            
+
             # -----------------------------
             # Led commands
             # -----------------------------
@@ -177,10 +182,23 @@ class CameraAgent(Agent):
                 for led_id, r, g, b in cmd:
                     self.agent.camera_manager.set_led(led_id, Color(r, g, b))
 
+            # -----------------------------
+            # Buzz commands
+            # -----------------------------
+            elif command == "buzz" and not self.agent.busy_buzzer:
+                self.agent.busy_buzzer = True
+                self.agent.add_behaviour(self.agent.PlayMusic())
+                return "buzzed"
 
             else:
                 logger.warning(f"[Behaviour] Unknown command: {command}")
             return None
+
+    class PlayMusic(OneShotBehaviour):
+        async def on_end(self):
+            self.agent.busy_buzzer = False
+        async def run(self):
+            self.agent.buzzer_manager.play_track(AUDIO_FILE + "/pas-un_robot.mp3")
 
     async def setup(self):
         """
@@ -190,6 +208,9 @@ class CameraAgent(Agent):
         logger.info(f"[Agent] Will connect as {self.jid}")
 
         self.camera_manager = CameraManager()
+
+        self.buzzer_manager = BuzzerManager()
+        self.busy_buzzer = False
 
         self.emergency_brake = False
         self.queue = asyncio.Queue()
