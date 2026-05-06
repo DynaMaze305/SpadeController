@@ -92,7 +92,7 @@ async def start_sensors_agent(run_agent: bool) -> Agent:
         agent = SensorsAgent(
             motion_jid=xmpp_motion_jid,
             period_sensors=1,
-            period_emergency=0.001,
+            period_emergency=0.1,
             jid=xmpp_jid,
             password=xmpp_password,
             verify_security=False
