@@ -54,6 +54,7 @@ def _target_pwm(now: float, kick_until: float, blocked: bool, base_pwm: int) -> 
         return 0
     return int(base_pwm)
 
+PAUSE_TIME = 5
 
 class MotionAgent(Agent):
     class XMPPCommandListener(CyclicBehaviour):
@@ -91,6 +92,11 @@ class MotionAgent(Agent):
             state = command.split(' ', 1)[1]
             logger.info(f"[Behaviour] Emergency: {state} (side={side})")
 
+            # penality
+            if state == "penality":
+                logger.warning("[Behaviour] I receive a penality! >:(")
+                pass
+
             # manual override clears everything
             if state == "override":
                 self.agent.ir_left_blocked = False
@@ -98,6 +104,7 @@ class MotionAgent(Agent):
                 self.agent.motion_manager.clear_emergency_stop()
                 self.agent.emergency_brake = False
                 return
+
 
             was_double = self.agent.ir_left_blocked and self.agent.ir_right_blocked
 
@@ -165,6 +172,9 @@ class MotionAgent(Agent):
             """
             Pull queued commands and execute them, replying with the result.
             """
+            if self.agent.paused:
+                await asyncio.sleep(PAUSE_TIME)
+                self.agent.paused = False
             msg = await self.agent.queue.get()
 
             keyboard_signal = msg.get_metadata("source") == "keyboard"
@@ -409,6 +419,7 @@ class MotionAgent(Agent):
 
         self.motion_manager = MotionManager()
         self.emergency_brake = False
+        self.paused = False
         # per-side IR state, used by process_command to detect both-blocked transitions
         self.ir_left_blocked = False
         self.ir_right_blocked = False
